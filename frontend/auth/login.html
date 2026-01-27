@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login | TriCloud Vault</title>
+  <link rel="stylesheet" href="../css/auth.css">
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="logo">☁️ TriCloud Vault</div>
+    <div class="nav-links">
+      <a href="login.html">Login</a>
+      <a href="register.html">Register</a>
+    </div>
+  </nav>
+
+  <div class="auth-container">
+    <div class="auth-card">
+      <h2>Login</h2>
+
+      <input type="email" id="email" placeholder="Email">
+      <input type="password" id="password" placeholder="Password">
+
+      <button onclick="login()">Login</button>
+
+      <p class="switch">
+        Don’t have an account?
+        <a href="register.html">Register</a>
+      </p>
+    </div>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/auth.js"></script>
+</body>
+</html>

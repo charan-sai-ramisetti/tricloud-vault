@@ -1,50 +1,53 @@
+from azure.storage.blob import (
+    BlobServiceClient,
+    generate_blob_sas,
+    BlobSasPermissions,
+)
+from datetime import datetime, timedelta
 import os
 import uuid
-from azure.storage.blob import BlobServiceClient
-from azure.core.exceptions import AzureError
 
-AZURE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
-AZURE_ACCOUNT_KEY = os.getenv("AZURE_STORAGE_ACCOUNT_KEY")
 AZURE_CONTAINER = os.getenv("AZURE_CONTAINER_NAME")
+ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
+ACCOUNT_KEY = os.getenv("AZURE_STORAGE_ACCOUNT_KEY")
 
-connection_string = (
-    f"DefaultEndpointsProtocol=https;"
-    f"AccountName={AZURE_ACCOUNT_NAME};"
-    f"AccountKey={AZURE_ACCOUNT_KEY};"
-    f"EndpointSuffix=core.windows.net"
+service = BlobServiceClient(
+    account_url=f"https://{ACCOUNT_NAME}.blob.core.windows.net",
+    credential=ACCOUNT_KEY,
 )
 
-blob_service_client = BlobServiceClient.from_connection_string(connection_string)
 
+def generate_azure_upload_url(user_id, file_name):
+    blob_name = f"users/{user_id}/{uuid.uuid4()}_{file_name}"
 
-def upload_file_to_azure(file_obj, user_id):
-    """
-    Upload file to Azure Blob Storage and return blob path
-    """
-    file_extension = os.path.splitext(file_obj.name)[1]
-    blob_name = f"users/{user_id}/{uuid.uuid4()}{file_extension}"
-
-    try:
-        blob_client = blob_service_client.get_blob_client(
-            container=AZURE_CONTAINER,
-            blob=blob_name,
-        )
-        blob_client.upload_blob(file_obj, overwrite=True)
-    except AzureError as e:
-        raise Exception(f"Azure upload failed: {str(e)}")
-
-    return blob_name
-
-def download_file_from_azure(blob_name):
-    blob_client = blob_service_client.get_blob_client(
-        container=AZURE_CONTAINER,
-        blob=blob_name
+    sas = generate_blob_sas(
+        account_name=ACCOUNT_NAME,
+        container_name=AZURE_CONTAINER,
+        blob_name=blob_name,
+        account_key=ACCOUNT_KEY,
+        permission=BlobSasPermissions(write=True),
+        expiry=datetime.utcnow() + timedelta(hours=1),
     )
-    stream = blob_client.download_blob()
-    return stream.chunks()
+
+    url = f"https://{ACCOUNT_NAME}.blob.core.windows.net/{AZURE_CONTAINER}/{blob_name}?{sas}"
+    return blob_name, url
+
+
+def generate_azure_download_url(blob_name):
+    sas = generate_blob_sas(
+        account_name=ACCOUNT_NAME,
+        container_name=AZURE_CONTAINER,
+        blob_name=blob_name,
+        account_key=ACCOUNT_KEY,
+        permission=BlobSasPermissions(read=True),
+        expiry=datetime.utcnow() + timedelta(hours=1),
+    )
+
+    return f"https://{ACCOUNT_NAME}.blob.core.windows.net/{AZURE_CONTAINER}/{blob_name}?{sas}"
+
 
 def delete_file_from_azure(blob_name):
-    blob_client = blob_service_client.get_blob_client(
+    blob_client = service.get_blob_client(
         container=AZURE_CONTAINER,
         blob=blob_name
     )

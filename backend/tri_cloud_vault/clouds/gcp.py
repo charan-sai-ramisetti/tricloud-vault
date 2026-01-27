@@ -1,27 +1,33 @@
+from google.cloud import storage
 import os
 import uuid
-from google.cloud import storage
-
-GCP_BUCKET = os.getenv("GCP_BUCKET_NAME")
+from datetime import timedelta
 
 client = storage.Client()
-bucket = client.bucket(GCP_BUCKET)
+bucket = client.bucket(os.getenv("GCP_BUCKET_NAME"))
 
 
-def upload_file_to_gcp(file_obj, user_id):
-    file_ext = os.path.splitext(file_obj.name)[1]
-    blob_name = f"users/{user_id}/{uuid.uuid4()}{file_ext}"
-
+def generate_gcp_upload_url(user_id, file_name):
+    blob_name = f"users/{user_id}/{uuid.uuid4()}_{file_name}"
     blob = bucket.blob(blob_name)
-    blob.upload_from_file(file_obj)
 
-    return blob_name
+    url = blob.generate_signed_url(
+        version="v4",
+        expiration=timedelta(hours=1),
+        method="PUT",
+        content_type="application/octet-stream",
+    )
+
+    return blob_name, url
 
 
-def download_file_from_gcp(blob_name):
+def generate_gcp_download_url(blob_name):
     blob = bucket.blob(blob_name)
-    return blob.open("rb")
-
+    return blob.generate_signed_url(
+        version="v4",
+        expiration=timedelta(hours=1),
+        method="GET",
+    )
 
 def delete_file_from_gcp(blob_name):
     blob = bucket.blob(blob_name)

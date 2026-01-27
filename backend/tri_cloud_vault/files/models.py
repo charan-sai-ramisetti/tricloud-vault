@@ -6,7 +6,10 @@ class File(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="files")
 
     file_name = models.CharField(max_length=255)
-    file_size = models.BigIntegerField(help_text="Size in bytes")
+    file_size = models.BigIntegerField(
+        null=True,
+        blank=True
+    )
 
     # cloud locations (nullable → user may not choose all)
     aws_path = models.CharField(max_length=512, null=True, blank=True)

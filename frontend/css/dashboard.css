@@ -1,0 +1,151 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", sans-serif;
+}
+
+body {
+  background: #f5f7fb;
+  min-height: 100vh;
+}
+
+/* Navbar */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 40px;
+  background: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.logo {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.nav-right button {
+  padding: 8px 14px;
+  border: none;
+  background: #ff5c5c;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* Layout */
+.dashboard-container {
+  padding: 30px 60px;
+}
+
+/* Upload Section */
+.upload-section {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+  margin-bottom: 20px;
+}
+
+.upload-section input[type="file"] {
+  margin-bottom: 12px;
+}
+
+.cloud-select {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.cloud-select label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0f3ff;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.cloud-select input {
+  accent-color: #6c8cff;
+}
+
+#uploadBtn {
+  padding: 10px 18px;
+  background: #6c8cff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Upload Status */
+.upload-status {
+  background: white;
+  padding: 14px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+.upload-file-name {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.cloud-progress {
+  margin-bottom: 8px;
+}
+
+.progress-bar {
+  width: 100%;
+  background: #eee;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress {
+  height: 100%;
+  width: 0%;
+  background: #6c8cff;
+  transition: width 0.3s ease;
+}
+
+/* File List */
+.file-list {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+td button {
+  margin-right: 6px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.download {
+  background: #6c8cff;
+  color: white;
+}
+
+.delete {
+  background: #ff5c5c;
+  color: white;
+}

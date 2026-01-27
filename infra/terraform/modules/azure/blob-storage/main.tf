@@ -9,6 +9,18 @@ resource "azurerm_storage_account" "this" {
   location                 = var.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
+  blob_properties {
+    cors_rule {
+      allowed_headers    = ["*"]
+      allowed_methods    = ["PUT", "GET", "POST"]
+      allowed_origins    = [
+        "http://localhost:5500",
+        "http://127.0.0.1:5500"
+      ]
+      exposed_headers    = ["ETag"]
+      max_age_in_seconds = 3600
+    }
+  }
 }
 
 resource "azurerm_storage_container" "tricloud_container" {

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard | TriCloud Vault</title>
+  <link rel="stylesheet" href="../css/dashboard.css">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="logo">☁️ TriCloud Vault</div>
+    <div class="nav-right">
+      <button onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <!-- Main Layout -->
+  <div class="dashboard-container">
+
+    <!-- Upload Section -->
+    <div class="upload-section">
+      <input type="file" id="fileInput">
+
+      <div id="cloudSelect">
+        <label><input type="checkbox" value="AWS"> AWS</label>
+        <label><input type="checkbox" value="AZURE"> Azure</label>
+        <label><input type="checkbox" value="GCP"> GCP</label>
+      </div>
+
+
+      <button onclick="startUpload()">Upload</button>
+    </div>
+
+    <!-- Upload Status -->
+    <div id="upload-status-container"></div>
+
+    <!-- File List -->
+    <div class="file-list">
+      <h3>Your Files</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Cloud</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="filesTable">
+          <!-- Files will be injected here -->
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/upload.js"></script>
+  <script src="../js/files.js"></script>
+</body>
+</html>

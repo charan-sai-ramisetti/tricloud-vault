@@ -20,6 +20,8 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
 
         if not serializer.is_valid():
+            print("🔴 REGISTER DATA:", request.data)
+            print("🔴 REGISTER ERRORS:", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         user = serializer.save()
@@ -34,6 +36,8 @@ class RegisterView(APIView):
 
         verification_link = f"http://127.0.0.1:8000/api/auth/verify-email?token={token}"
 
+        print("🔥 SEND_MAIL ABOUT TO EXECUTE 🔥")
+
         send_mail(
             subject="Verify your TriCloud Vault account",
             message=f"Click the link to verify your account:\n{verification_link}",
@@ -41,6 +45,9 @@ class RegisterView(APIView):
             recipient_list=[user.email],
             fail_silently=False,
         )
+
+        print("✅ SEND_MAIL EXECUTED ✅")
+
 
         return Response(
             {
