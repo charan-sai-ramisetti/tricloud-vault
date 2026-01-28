@@ -2,61 +2,129 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Dashboard | TriCloud Vault</title>
-  <link rel="stylesheet" href="../css/dashboard.css">
+  <title>Razorpay Test | TriCloud Vault</title>
+
+  <!-- Razorpay Checkout -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fb;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .card {
+      background: #fff;
+      padding: 30px;
+      border-radius: 8px;
+      width: 350px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+
+    button {
+      padding: 12px 20px;
+      font-size: 16px;
+      background: #5469d4;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #4054c5;
+    }
+
+    .status {
+      margin-top: 20px;
+      font-size: 14px;
+    }
+  </style>
 </head>
+
 <body>
 
-  <!-- Navbar -->
-  <nav class="navbar">
-    <div class="logo">☁️ TriCloud Vault</div>
-    <div class="nav-right">
-      <button onclick="logout()">Logout</button>
-    </div>
-  </nav>
+  <div class="card">
+    <h2>TriCloud Vault</h2>
+    <p>Upgrade Plan (Test Mode)</p>
+    <p><strong>₹500</strong></p>
 
-  <!-- Main Layout -->
-  <div class="dashboard-container">
+    <button onclick="startPayment()">Pay with Razorpay</button>
 
-    <!-- Upload Section -->
-    <div class="upload-section">
-      <input type="file" id="fileInput">
-
-      <div id="cloudSelect">
-        <label><input type="checkbox" value="AWS"> AWS</label>
-        <label><input type="checkbox" value="AZURE"> Azure</label>
-        <label><input type="checkbox" value="GCP"> GCP</label>
-      </div>
-
-
-      <button onclick="startUpload()">Upload</button>
-    </div>
-
-    <!-- Upload Status -->
-    <div id="upload-status-container"></div>
-
-    <!-- File List -->
-    <div class="file-list">
-      <h3>Your Files</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Cloud</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="filesTable">
-          <!-- Files will be injected here -->
-        </tbody>
-      </table>
-    </div>
-
+    <div class="status" id="status"></div>
   </div>
 
-  <script src="../js/config.js"></script>
-  <script src="../js/utils.js"></script>
-  <script src="../js/upload.js"></script>
-  <script src="../js/files.js"></script>
+  <script>
+    const API_BASE_URL = "http://localhost:8000/api"; // change if needed
+
+    function startPayment() {
+      document.getElementById("status").innerText = "Creating order...";
+
+      fetch(`${API_BASE_URL}/payments/create-order/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + localStorage.getItem("access_token")
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        openRazorpay(data);
+      })
+      .catch(() => {
+        document.getElementById("status").innerText = "Failed to create order";
+      });
+    }
+
+    function openRazorpay(orderData) {
+      const options = {
+        key: orderData.razorpay_key,
+        amount: orderData.amount,
+        currency: "INR",
+        name: "TriCloud Vault",
+        description: "Upgrade Plan (Test)",
+        order_id: orderData.order_id,
+
+        handler: function (response) {
+          verifyPayment(response);
+        }
+      };
+
+      const rzp = new Razorpay(options);
+      rzp.open();
+    }
+
+    function verifyPayment(response) {
+      document.getElementById("status").innerText = "Verifying payment...";
+
+      fetch(`${API_BASE_URL}/payments/verify/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + localStorage.getItem("access_token")
+        },
+        body: JSON.stringify({
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("status").innerText =
+          "Payment successful ✅ Subscription upgraded";
+      })
+      .catch(() => {
+        document.getElementById("status").innerText =
+          "Payment verification failed ❌";
+      });
+    }
+  </script>
+
 </body>
 </html>
