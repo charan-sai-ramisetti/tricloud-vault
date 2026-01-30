@@ -1,130 +1,156 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Razorpay Test | TriCloud Vault</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard | TriCloud Vault</title>
 
-  <!-- Razorpay Checkout -->
-  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f7fb;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-
-    .card {
-      background: #fff;
-      padding: 30px;
-      border-radius: 8px;
-      width: 350px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-      text-align: center;
-    }
-
-    button {
-      padding: 12px 20px;
-      font-size: 16px;
-      background: #5469d4;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background: #4054c5;
-    }
-
-    .status {
-      margin-top: 20px;
-      font-size: 14px;
-    }
-  </style>
+  <link rel="stylesheet" href="../css/dashboard.css" />
 </head>
 
 <body>
 
-  <div class="card">
-    <h2>TriCloud Vault</h2>
-    <p>Upgrade Plan (Test Mode)</p>
-    <p><strong>₹500</strong></p>
+  <!-- ===============================
+       TOP NAVBAR
+       =============================== -->
+  <header class="topbar">
+    <div class="logo">☁️ TriCloud Vault</div>
 
-    <button onclick="startPayment()">Pay with Razorpay</button>
+    <div class="topbar-actions">
+      <span class="plan-badge" id="plan-name">FREE</span>
+      <button id="upgrade-btn">Upgrade</button>
+      <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+  </header>
 
-    <div class="status" id="status"></div>
+  <!-- ===============================
+       MAIN DASHBOARD
+       =============================== -->
+  <main class="dashboard">
+
+    <!-- STORAGE USAGE -->
+    <section class="card">
+      <h3>Storage Usage</h3>
+
+      <div class="storage-row">
+        <div class="storage-label">
+          <span>AWS</span>
+          <small id="aws-text">0 MB / 0 MB</small>
+        </div>
+        <div class="progress-bar">
+          <div id="aws-bar"></div>
+        </div>
+      </div>
+
+      <div class="storage-row">
+        <div class="storage-label">
+          <span>Azure</span>
+          <small id="azure-text">0 MB / 0 MB</small>
+        </div>
+        <div class="progress-bar">
+          <div id="azure-bar"></div>
+        </div>
+      </div>
+
+      <div class="storage-row">
+        <div class="storage-label">
+          <span>GCP</span>
+          <small id="gcp-text">0 MB / 0 MB</small>
+        </div>
+        <div class="progress-bar">
+          <div id="gcp-bar"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- UPLOAD FILE -->
+    <section class="card">
+  <h3>Upload File</h3>
+
+  <!-- REQUIRED wrapper for hard reset -->
+  <div id="file-input-wrapper">
+    <label class="file-picker">
+      <input type="file" id="fileInput" hidden />
+      <span id="selected-file-text">Select file</span>
+    </label>
   </div>
 
-  <script>
-    const API_BASE_URL = "http://localhost:8000/api"; // change if needed
+  <div class="cloud-options" id="cloudSelect">
+    <label><input type="checkbox" value="AWS"> AWS</label>
+    <label><input type="checkbox" value="AZURE"> Azure</label>
+    <label><input type="checkbox" value="GCP"> GCP</label>
+  </div>
 
-    function startPayment() {
-      document.getElementById("status").innerText = "Creating order...";
+  <button class="primary-btn" onclick="startUpload()">Upload</button>
 
-      fetch(`${API_BASE_URL}/payments/create-order/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + localStorage.getItem("access_token")
-        }
-      })
-      .then(res => res.json())
-      .then(data => {
-        openRazorpay(data);
-      })
-      .catch(() => {
-        document.getElementById("status").innerText = "Failed to create order";
-      });
-    }
+  <div id="upload-status-container"></div>
+</section>
 
-    function openRazorpay(orderData) {
-      const options = {
-        key: orderData.razorpay_key,
-        amount: orderData.amount,
-        currency: "INR",
-        name: "TriCloud Vault",
-        description: "Upgrade Plan (Test)",
-        order_id: orderData.order_id,
+    <!-- FOLDERS -->
+    <section class="card">
+      <h3>Folders</h3>
+      <div class="folders-grid" id="folders-container"></div>
+    </section>
 
-        handler: function (response) {
-          verifyPayment(response);
-        }
-      };
+    <!-- RECENT FILES -->
+    <section class="card full">
+      <h3>Recent Files</h3>
+      <table class="table">
+  <thead>
+    <tr>
+      <th class="col-name">Name</th>
+      <th class="col-size">Size</th>
+      <th class="col-clouds">Clouds</th>
+      <th class="col-date">Uploaded</th>
+    </tr>
+  </thead>
+  <tbody id="recent-files-table"></tbody>
+</table>
 
-      const rzp = new Razorpay(options);
-      rzp.open();
-    }
+    </section>
 
-    function verifyPayment(response) {
-      document.getElementById("status").innerText = "Verifying payment...";
+    <!-- ALL FILES -->
+    <section class="card full">
+      <h3>Your Files</h3>
+      <table class="table">
+  <thead>
+    <tr>
+      <th class="col-name">Name</th>
+      <th class="col-clouds">Clouds</th>
+      <th class="col-actions">Actions</th>
+    </tr>
+  </thead>
+  <tbody id="filesTable"></tbody>
+</table>
 
-      fetch(`${API_BASE_URL}/payments/verify/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + localStorage.getItem("access_token")
-        },
-        body: JSON.stringify({
-          razorpay_order_id: response.razorpay_order_id,
-          razorpay_payment_id: response.razorpay_payment_id,
-          razorpay_signature: response.razorpay_signature
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        document.getElementById("status").innerText =
-          "Payment successful ✅ Subscription upgraded";
-      })
-      .catch(() => {
-        document.getElementById("status").innerText =
-          "Payment verification failed ❌";
-      });
-    }
-  </script>
+    </section>
+
+  </main>
+
+  <!-- CONFIRM DELETE MODAL -->
+<!-- DELETE CONFIRM MODAL -->
+<div id="deleteModal" class="modal hidden">
+  <div class="modal-box">
+    <h3>Delete file from clouds</h3>
+
+    <div id="deleteCloudOptions"></div>
+
+    <div class="modal-actions">
+      <button id="confirmDeleteBtn" class="btn-delete">Delete</button>
+      <button onclick="closeDeleteModal()" class="btn-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+  <!-- ===============================
+       JS FILES (ORDER MATTERS)
+       =============================== -->
+  <script src="../js/config.js"></script>
+  <script src="../js/utils.js"></script>
+  <script src="../js/files.js"></script>
+  <script src="../js/upload.js"></script>
+  <script src="../js/dashboard.js"></script>
 
 </body>
 </html>

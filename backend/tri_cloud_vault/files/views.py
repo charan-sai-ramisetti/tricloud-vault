@@ -2,6 +2,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
+from django.db.models import Sum
+from payments.models import Subscription
+
 
 from .models import File
 from .serializers import FileSerializer
@@ -42,16 +45,25 @@ class PresignUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        print(request.data)
         file_name = request.data.get("file_name")
+        file_size = request.data.get("file_size")
         clouds = request.data.get("clouds", [])
 
-        if not file_name or not clouds:
+        if not file_name or not file_size or not clouds:
             return Response(
-                {"error": "file_name and clouds are required"},
+                {"error": "file_name, file_size and clouds are required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # ---------- FILE SIZE CHECK (100 MB) ----------
+        MAX_FILE_SIZE_MB = 100
+        if file_size > MAX_FILE_SIZE_MB * 1024 * 1024:
+            return Response(
+                {"error": "File size exceeds 100 MB limit"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # ---------- VALIDATE CLOUDS ----------
         clouds = [c.upper() for c in clouds]
         invalid = set(clouds) - ALLOWED_CLOUDS
         if invalid:
@@ -60,6 +72,53 @@ class PresignUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # ---------- GET SUBSCRIPTION ----------
+        subscription, _ = Subscription.objects.get_or_create(
+            user=request.user,
+            defaults={
+                "plan": "FREE",
+                "cloud_limit_mb": 1024,
+                "max_file_size_mb": 100,
+            },
+        )
+
+        cloud_limit_bytes = subscription.cloud_limit_mb * 1024 * 1024
+
+        # ---------- QUOTA CHECK PER CLOUD ----------
+        for cloud in clouds:
+            if cloud == "AWS":
+                used = (
+                    File.objects.filter(
+                        user=request.user,
+                        aws_path__isnull=False
+                    ).aggregate(total=Sum("file_size"))["total"] or 0
+                )
+            elif cloud == "AZURE":
+                used = (
+                    File.objects.filter(
+                        user=request.user,
+                        azure_path__isnull=False
+                    ).aggregate(total=Sum("file_size"))["total"] or 0
+                )
+            elif cloud == "GCP":
+                used = (
+                    File.objects.filter(
+                        user=request.user,
+                        gcp_path__isnull=False
+                    ).aggregate(total=Sum("file_size"))["total"] or 0
+                )
+
+            if used + file_size > cloud_limit_bytes:
+                return Response(
+                    {
+                        "error": f"{cloud} storage limit exceeded",
+                        "used_mb": used // (1024 * 1024),
+                        "limit_mb": subscription.cloud_limit_mb,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        # ---------- GENERATE PRESIGNED URLS ----------
         upload_urls = {}
         paths = {}
 
@@ -85,6 +144,7 @@ class PresignUploadView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
 
 class ConfirmUploadView(APIView):
     permission_classes = [IsAuthenticated]
@@ -166,6 +226,7 @@ class ConfirmUploadView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
 
 
 

@@ -1,36 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Login | TriCloud Vault</title>
-  <link rel="stylesheet" href="../css/auth.css">
+  <link rel="stylesheet" href="../css/auth.css" />
 </head>
-<body>
 
-  <nav class="navbar">
+<body>
+  <header class="auth-header">
     <div class="logo">☁️ TriCloud Vault</div>
-    <div class="nav-links">
+    <nav>
       <a href="login.html">Login</a>
       <a href="register.html">Register</a>
-    </div>
-  </nav>
+    </nav>
+  </header>
 
-  <div class="auth-container">
+  <main class="auth-wrapper">
     <div class="auth-card">
       <h2>Login</h2>
 
-      <input type="email" id="email" placeholder="Email">
-      <input type="password" id="password" placeholder="Password">
+      <form id="loginForm">
+        <input
+          type="text"
+          name="username"
+          placeholder="Username"
+          required
+        />
 
-      <button onclick="login()">Login</button>
+        <input
+          type="password"
+          name="password"
+          placeholder="Password"
+          required
+        />
 
-      <p class="switch">
+        <button type="submit">Login</button>
+      </form>
+
+      <p class="auth-footer">
         Don’t have an account?
         <a href="register.html">Register</a>
       </p>
     </div>
-  </div>
+  </main>
 
+  <!-- IMPORTANT: order matters -->
   <script src="../js/config.js"></script>
   <script src="../js/auth.js"></script>
 </body>

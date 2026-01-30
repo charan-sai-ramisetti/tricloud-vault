@@ -1,3 +1,9 @@
+let deleteTarget = {
+  fileId: null,
+  clouds: []
+};
+
+
 // Load files when dashboard opens
 document.addEventListener("DOMContentLoaded", loadFiles);
 
@@ -15,7 +21,7 @@ function loadFiles() {
         const clouds = [];
 
         if (file.aws_path) clouds.push("AWS");
-        if (file.azure_path) clouds.push("Azure");
+        if (file.azure_path) clouds.push("AZURE");
         if (file.gcp_path) clouds.push("GCP");
 
         const row = document.createElement("tr");
@@ -23,21 +29,30 @@ function loadFiles() {
         row.innerHTML = `
           <td>${file.file_name}</td>
           <td>${clouds.join(", ")}</td>
-          <td>
-            <button class="download" onclick="downloadFile(${file.id})">
-              Download
-            </button>
-            <button class="delete" onclick='deleteFile(${file.id}, ${JSON.stringify(clouds)})'>
-              Delete
-            </button>
+          <td class="actions">
+            <div class="action-buttons">
+              <button class="btn-download">Download</button>
+              <button class="btn-delete">Delete</button>
+            </div>
           </td>
         `;
 
         table.appendChild(row);
+
+        // Download
+        row.querySelector(".btn-download").addEventListener("click", () => {
+          downloadFile(file.id);
+        });
+
+        // Delete (open modal)
+        row.querySelector(".btn-delete").addEventListener("click", () => {
+          openDeleteModal(file.id, clouds);
+        });
       });
     })
     .catch(() => alert("Failed to load files"));
 }
+
 
 /* ===============================
    DOWNLOAD FILE
@@ -54,50 +69,59 @@ function downloadFile(fileId) {
     .catch(() => alert("Download failed"));
 }
 
-/* ===============================
-   DELETE FILE (CLOUD-AWARE)
-   =============================== */
-function deleteFile(fileId, clouds) {
-  if (!clouds || clouds.length === 0) {
-    alert("No clouds found for this file");
+document.getElementById("confirmDeleteBtn").onclick = function () {
+  const checked = Array.from(
+    document.querySelectorAll("#deleteCloudOptions input:checked")
+  ).map(cb => cb.value.toUpperCase());
+
+  if (checked.length === 0) {
+    alert("Select at least one cloud");
     return;
   }
 
-  const selected = prompt(
-    `File exists in: ${clouds.join(", ")}\n\n` +
-    `Type clouds to delete (comma separated), or ALL:\n` +
-    `Example: AWS,GCP`
-  );
-
-  if (!selected) return;
-
-  let deleteClouds;
-
-  if (selected.toUpperCase() === "ALL") {
-    deleteClouds = clouds;
-  } else {
-    deleteClouds = selected
-      .split(",")
-      .map(c => c.trim().toUpperCase())
-      .filter(c =>
-        clouds.map(x => x.toUpperCase()).includes(c)
-      );
-  }
-
-  if (deleteClouds.length === 0) {
-    alert("No valid clouds selected");
-    return;
-  }
-
-  fetch(`${API_BASE_URL}/files/${fileId}/`, {
+  fetch(`${API_BASE_URL}/files/${deleteTarget.fileId}/`, {
     method: "DELETE",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      clouds: deleteClouds
-    })
+    headers: {
+      ...authHeaders(),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ clouds: checked })
   })
-    .then(() => {
+    .then(res => {
+      if (!res.ok) throw new Error();
+      closeDeleteModal();
       loadFiles();
+      loadRecentFiles();
+      loadFolders();
+      loadStorageSummary();
     })
     .catch(() => alert("Delete failed"));
+};
+
+
+function openDeleteModal(fileId, clouds) {
+  deleteTarget.fileId = fileId;
+  deleteTarget.clouds = clouds;
+
+  const container = document.getElementById("deleteCloudOptions");
+  container.innerHTML = "";
+
+  clouds.forEach(cloud => {
+    const label = document.createElement("label");
+    label.style.display = "block";
+    label.style.marginBottom = "8px";
+
+    label.innerHTML = `
+      <input type="checkbox" value="${cloud}" checked>
+      ${cloud}
+    `;
+
+    container.appendChild(label);
+  });
+
+  document.getElementById("deleteModal").classList.remove("hidden");
+}
+
+function closeDeleteModal() {
+  document.getElementById("deleteModal").classList.add("hidden");
 }

@@ -5,6 +5,15 @@ from rest_framework.permissions import IsAuthenticated
 from files.models import File
 from payments.models import Subscription
 
+from django.db.models import Sum
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+
+from files.models import File
+from payments.models import Subscription
+
+
 class StorageSummaryView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -31,18 +40,19 @@ class StorageSummaryView(APIView):
 
         return Response({
             "aws": {
-                "used_mb": aws_used // (1024 * 1024),
+                "used_mb": round(aws_used / (1024 * 1024), 2),
                 "limit_mb": limit_mb
             },
             "azure": {
-                "used_mb": azure_used // (1024 * 1024),
+                "used_mb": round(azure_used / (1024 * 1024), 2),
                 "limit_mb": limit_mb
             },
             "gcp": {
-                "used_mb": gcp_used // (1024 * 1024),
+                "used_mb": round(gcp_used / (1024 * 1024), 2),
                 "limit_mb": limit_mb
             }
         })
+
 
 class RecentFilesView(APIView):
     permission_classes = [IsAuthenticated]
@@ -69,12 +79,13 @@ class RecentFilesView(APIView):
             data.append({
                 "id": f.id,
                 "file_name": f.file_name,
-                "size_mb": (f.file_size or 0) // (1024 * 1024),
+                "size_mb": round((f.file_size or 0) / (1024 * 1024), 2),
                 "uploaded_at": f.created_at,
                 "clouds": clouds
             })
 
         return Response(data)
+
 
 class FolderSummaryView(APIView):
     permission_classes = [IsAuthenticated]
@@ -116,8 +127,7 @@ class FolderSummaryView(APIView):
             response.append({
                 "name": name,
                 "count": data["count"],
-                "size_mb": data["size"] // (1024 * 1024)
+                "size_mb": round(data["size"] / (1024 * 1024), 2)
             })
 
         return Response(response)
-
