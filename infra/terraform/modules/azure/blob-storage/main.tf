@@ -15,7 +15,8 @@ resource "azurerm_storage_account" "this" {
       allowed_methods    = ["PUT", "GET", "POST"]
       allowed_origins    = [
         "http://localhost:5500",
-        "http://127.0.0.1:5500"
+        "http://127.0.0.1:5500",
+        "https://urban-chainsaw-r49qv7gvx57c955-5500.app.github.dev"
       ]
       exposed_headers    = ["ETag"]
       max_age_in_seconds = 3600
