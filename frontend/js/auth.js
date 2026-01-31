@@ -14,8 +14,11 @@ document.addEventListener("DOMContentLoaded", () => {
   loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    errorBox.style.display = "none";
-    errorBox.innerText = "";
+    if (errorBox) {
+  errorBox.style.display = "none";
+  errorBox.innerText = "";
+}
+
 
     const email = loginForm.username.value.trim(); // email entered here
     const password = loginForm.password.value;
@@ -66,3 +69,42 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
+// =========================
+// REGISTER FUNCTION
+// =========================
+function register() {
+  const username = document.getElementById("name").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+
+  if (!username || !email || !password) {
+    alert("All fields are required");
+    return;
+  }
+
+  fetch(`${API_BASE_URL}/auth/register/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username: username,
+      email: email,
+      password: password
+    })
+  })
+    .then(async res => {
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data.error || "Registration failed");
+        return;
+      }
+
+      alert("Registration successful. Please verify your email.");
+      window.location.href = "login.html";
+    })
+    .catch(() => {
+      alert("Registration request failed. Please try again.");
+    });
+}
+
