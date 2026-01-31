@@ -59,20 +59,32 @@ function loadStorageSummary() {
     })
     .catch(err => console.error("Storage summary error", err));
 }
-
 function updateStorageBar(cloud, info) {
-  const percent = Math.max(
-  3,
-  Math.min(Math.round((info.used_mb / info.limit_mb) * 100), 100)
-);
-
-
   const bar = document.getElementById(`${cloud}-bar`);
   const text = document.getElementById(`${cloud}-text`);
 
-  if (bar) bar.style.width = percent + "%";
-  if (text)
-    text.innerText = `${info.used_mb} MB / ${info.limit_mb} MB`;
+  if (!bar || !text) return;
+
+  // Text always correct
+  text.innerText = `${info.used_mb} MB / ${info.limit_mb} MB`;
+
+  // Case 1: truly zero
+  if (info.used_mb === 0) {
+    bar.style.width = "0%";
+    bar.style.display = "none";
+    return;
+  }
+
+  // Case 2: very small but non-zero
+  let percent = (info.used_mb / info.limit_mb) * 100;
+
+  // ensure visibility without lying
+  if (percent < 0.5) {
+    percent = 0.5;
+  }
+
+  bar.style.display = "block";
+  bar.style.width = `${percent}%`;
 }
 
 /* ===============================

@@ -1,14 +1,9 @@
 from django.db.models import Sum
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from files.models import File
-from payments.models import Subscription
-
-from django.db.models import Sum
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
 
 from files.models import File
 from payments.models import Subscription
@@ -20,23 +15,38 @@ class StorageSummaryView(APIView):
     def get(self, request):
         user = request.user
 
-        subscription = Subscription.objects.get(user=user)
-        limit_mb = subscription.cloud_limit_mb
+        try:
+            subscription, _ = Subscription.objects.get_or_create(
+                user=user,
+                defaults={
+                    "plan": "FREE",
+                    "cloud_limit_mb": 1024,   # 1 GB
+                    "max_file_size_mb": 100
+                }
+            )
 
-        aws_used = (
-            File.objects.filter(user=user, aws_path__isnull=False)
-            .aggregate(total=Sum("file_size"))["total"] or 0
-        )
+            limit_mb = subscription.cloud_limit_mb
 
-        azure_used = (
-            File.objects.filter(user=user, azure_path__isnull=False)
-            .aggregate(total=Sum("file_size"))["total"] or 0
-        )
+            aws_used = (
+                File.objects.filter(user=user, aws_path__isnull=False)
+                .aggregate(total=Sum("file_size"))["total"] or 0
+            )
 
-        gcp_used = (
-            File.objects.filter(user=user, gcp_path__isnull=False)
-            .aggregate(total=Sum("file_size"))["total"] or 0
-        )
+            azure_used = (
+                File.objects.filter(user=user, azure_path__isnull=False)
+                .aggregate(total=Sum("file_size"))["total"] or 0
+            )
+
+            gcp_used = (
+                File.objects.filter(user=user, gcp_path__isnull=False)
+                .aggregate(total=Sum("file_size"))["total"] or 0
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": "Failed to calculate storage usage"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         return Response({
             "aws": {
@@ -60,29 +70,40 @@ class RecentFilesView(APIView):
     def get(self, request):
         user = request.user
 
-        files = (
-            File.objects
-            .filter(user=user)
-            .order_by("-created_at")[:5]
-        )
+        try:
+            files = (
+                File.objects
+                .filter(user=user)
+                .order_by("-created_at")[:5]
+            )
+        except Exception:
+            return Response(
+                {"error": "Failed to fetch recent files"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         data = []
-        for f in files:
-            clouds = []
-            if f.aws_path:
-                clouds.append("AWS")
-            if f.azure_path:
-                clouds.append("Azure")
-            if f.gcp_path:
-                clouds.append("GCP")
 
-            data.append({
-                "id": f.id,
-                "file_name": f.file_name,
-                "size_mb": round((f.file_size or 0) / (1024 * 1024), 2),
-                "uploaded_at": f.created_at,
-                "clouds": clouds
-            })
+        for f in files:
+            try:
+                clouds = []
+                if f.aws_path:
+                    clouds.append("AWS")
+                if f.azure_path:
+                    clouds.append("Azure")
+                if f.gcp_path:
+                    clouds.append("GCP")
+
+                data.append({
+                    "id": f.id,
+                    "file_name": f.file_name,
+                    "size_mb": round((f.file_size or 0) / (1024 * 1024), 2),
+                    "uploaded_at": f.created_at,
+                    "clouds": clouds
+                })
+            except Exception:
+                # Skip corrupted record, do not crash whole response
+                continue
 
         return Response(data)
 
@@ -92,7 +113,14 @@ class FolderSummaryView(APIView):
 
     def get(self, request):
         user = request.user
-        files = File.objects.filter(user=user)
+
+        try:
+            files = File.objects.filter(user=user)
+        except Exception:
+            return Response(
+                {"error": "Failed to fetch files"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         folders = {
             "Documents": ["pdf", "doc", "docx", "txt"],
@@ -108,19 +136,24 @@ class FolderSummaryView(APIView):
         }
 
         for f in files:
-            ext = f.file_name.split(".")[-1].lower()
-            matched = False
+            try:
+                ext = f.file_name.split(".")[-1].lower()
+                matched = False
 
-            for folder, exts in folders.items():
-                if ext in exts:
-                    result[folder]["count"] += 1
-                    result[folder]["size"] += f.file_size or 0
-                    matched = True
-                    break
+                for folder, exts in folders.items():
+                    if ext in exts:
+                        result[folder]["count"] += 1
+                        result[folder]["size"] += f.file_size or 0
+                        matched = True
+                        break
 
-            if not matched:
-                result["Others"]["count"] += 1
-                result["Others"]["size"] += f.file_size or 0
+                if not matched:
+                    result["Others"]["count"] += 1
+                    result["Others"]["size"] += f.file_size or 0
+
+            except Exception:
+                # Skip malformed file entry
+                continue
 
         response = []
         for name, data in result.items():

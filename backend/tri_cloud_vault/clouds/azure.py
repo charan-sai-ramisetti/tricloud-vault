@@ -3,6 +3,7 @@ from azure.storage.blob import (
     generate_blob_sas,
     BlobSasPermissions,
 )
+from azure.core.exceptions import AzureError
 from datetime import datetime, timedelta
 import os
 import uuid
@@ -18,38 +19,49 @@ service = BlobServiceClient(
 
 
 def generate_azure_upload_url(user_id, file_name):
-    blob_name = f"users/{user_id}/{uuid.uuid4()}_{file_name}"
+    try:
+        blob_name = f"users/{user_id}/{uuid.uuid4()}_{file_name}"
 
-    sas = generate_blob_sas(
-        account_name=ACCOUNT_NAME,
-        container_name=AZURE_CONTAINER,
-        blob_name=blob_name,
-        account_key=ACCOUNT_KEY,
-        permission=BlobSasPermissions(write=True),
-        expiry=datetime.utcnow() + timedelta(hours=1),
-    )
+        sas = generate_blob_sas(
+            account_name=ACCOUNT_NAME,
+            container_name=AZURE_CONTAINER,
+            blob_name=blob_name,
+            account_key=ACCOUNT_KEY,
+            permission=BlobSasPermissions(write=True),
+            expiry=datetime.utcnow() + timedelta(hours=1),
+        )
 
-    url = f"https://{ACCOUNT_NAME}.blob.core.windows.net/{AZURE_CONTAINER}/{blob_name}?{sas}"
-    return blob_name, url
+        url = f"https://{ACCOUNT_NAME}.blob.core.windows.net/{AZURE_CONTAINER}/{blob_name}?{sas}"
+        return blob_name, url
+
+    except AzureError as e:
+        raise RuntimeError(f"Azure upload URL generation failed: {str(e)}")
 
 
 def generate_azure_download_url(blob_name):
-    sas = generate_blob_sas(
-        account_name=ACCOUNT_NAME,
-        container_name=AZURE_CONTAINER,
-        blob_name=blob_name,
-        account_key=ACCOUNT_KEY,
-        permission=BlobSasPermissions(read=True),
-        expiry=datetime.utcnow() + timedelta(hours=1),
-    )
+    try:
+        sas = generate_blob_sas(
+            account_name=ACCOUNT_NAME,
+            container_name=AZURE_CONTAINER,
+            blob_name=blob_name,
+            account_key=ACCOUNT_KEY,
+            permission=BlobSasPermissions(read=True),
+            expiry=datetime.utcnow() + timedelta(hours=1),
+        )
 
-    return f"https://{ACCOUNT_NAME}.blob.core.windows.net/{AZURE_CONTAINER}/{blob_name}?{sas}"
+        return f"https://{ACCOUNT_NAME}.blob.core.windows.net/{AZURE_CONTAINER}/{blob_name}?{sas}"
+
+    except AzureError as e:
+        raise RuntimeError(f"Azure download URL generation failed: {str(e)}")
 
 
 def delete_file_from_azure(blob_name):
-    blob_client = service.get_blob_client(
-        container=AZURE_CONTAINER,
-        blob=blob_name
-    )
-    blob_client.delete_blob()
+    try:
+        blob_client = service.get_blob_client(
+            container=AZURE_CONTAINER,
+            blob=blob_name
+        )
+        blob_client.delete_blob()
 
+    except AzureError as e:
+        raise RuntimeError(f"Azure delete failed: {str(e)}")

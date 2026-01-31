@@ -1,68 +1,68 @@
+function showError(message) {
+  const box = document.getElementById("login-error");
+  if (!box) return;
+  box.innerHTML = message;
+  box.style.display = "block";
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("loginForm");
   if (!loginForm) return;
 
+  const errorBox = document.getElementById("login-error");
+
   loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const username = loginForm.username.value.trim();
+    errorBox.style.display = "none";
+    errorBox.innerText = "";
+
+    const email = loginForm.username.value.trim(); // email entered here
     const password = loginForm.password.value;
 
-    if (!username || !password) {
-      alert("User ID and password are required");
+    // ✅ FIXED CHECK
+    if (!email || !password) {
+      showError("Email and password are required.");
       return;
     }
 
-    fetch(`${API_BASE_URL}/auth/login/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password })
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.access) {
-          localStorage.setItem("access_token", data.access);
-          localStorage.setItem("refresh_token", data.refresh);
-          window.location.href = "../dashboard/dashboard.html";
-        } else {
-          alert(data.error || "Login failed");
-        }
-      })
-      .catch(() => alert("Login request failed"));
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+
+      let data = {};
+      try {
+        data = await response.json();
+      } catch {}
+
+      if (response.status === 401) {
+        showError("Invalid email or password.");
+        return;
+      }
+
+      if (response.status === 403) {
+        showError(
+          `Email not verified.
+           <a href="resend-verification.html">Resend verification email</a>`
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        showError("Login failed. Please try again.");
+        return;
+      }
+
+      // ✅ Success
+      localStorage.setItem("access_token", data.access);
+      localStorage.setItem("refresh_token", data.refresh);
+      window.location.href = "../dashboard/dashboard.html";
+
+    } catch (err) {
+      showError("Login request failed. Please try again.");
+    }
   });
 });
-
-
-/* =========================
-   REGISTER FUNCTION
-   ========================= */
-function register() {
-  const name = document.getElementById("name").value;
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-
-  if (!name || !email || !password) {
-    alert("All fields are required");
-    return;
-  }
-
-  fetch(`${API_BASE_URL}/auth/register/`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      username: name,   // Django User requires username
-      email: email,     // REQUIRED for email verification
-      password: password
-    })
-  })
-    .then(res => res.json())
-    .then(data => {
-      alert("Registration successful. Please verify your email.");
-      window.location.href = "login.html";
-    })
-    .catch(() => {
-      alert("Registration failed. Please try again.");
-    });
-}

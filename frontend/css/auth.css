@@ -1,3 +1,6 @@
+/* ===============================
+   AUTH THEME VARIABLES
+   =============================== */
 :root {
   --primary-blue: #4F6EF7;
   --primary-blue-dark: #3F5AE0;
@@ -8,15 +11,9 @@
   --border-light: #E5E7EB;
 }
 
-/* Reset */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-/* Page background */
+/* ===============================
+   BASE
+   =============================== */
 body {
   min-height: 100vh;
   background: linear-gradient(
@@ -24,114 +21,75 @@ body {
     var(--bg-gradient-start),
     var(--bg-gradient-end)
   );
+  color: var(--text-dark);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* Header */
-.auth-header {
-  height: 64px;
-  padding: 0 32px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: white;
-  border-bottom: 1px solid var(--border-light);
-}
-
-.auth-header .logo {
+/* ===============================
+   NAVBAR BRAND
+   =============================== */
+.navbar-brand {
   font-weight: 600;
   font-size: 18px;
   color: var(--text-dark);
 }
 
-.auth-header nav a {
-  margin-left: 24px;
-  text-decoration: none;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.auth-header nav a:hover {
+/* ===============================
+   LINKS
+   =============================== */
+a {
   color: var(--primary-blue);
 }
 
-/* Centered layout */
-.auth-wrapper {
-  min-height: calc(100vh - 64px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+a:hover {
+  color: var(--primary-blue-dark);
 }
 
-/* Card */
-.auth-card {
-  width: 100%;
-  max-width: 420px;
-  background: white;
-  padding: 32px;
+/* ===============================
+   CARDS (AUTH)
+   =============================== */
+.card {
   border-radius: 14px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
-  text-align: center;
-}
-
-.auth-card h2 {
-  margin-bottom: 24px;
-  color: var(--text-dark);
-}
-
-/* Inputs */
-.auth-card input {
-  width: 100%;
-  padding: 14px;
-  margin-bottom: 16px;
-  border-radius: 10px;
   border: 1px solid var(--border-light);
-  font-size: 14px;
 }
 
-.auth-card input:focus {
-  outline: none;
+.card-body {
+  padding: 28px;
+}
+
+/* ===============================
+   BUTTONS
+   =============================== */
+.btn-primary {
+  background-color: var(--primary-blue);
   border-color: var(--primary-blue);
 }
 
-/* Button */
-.auth-card button {
-  width: 100%;
-  padding: 14px;
-  background: var(--primary-blue);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s ease;
+.btn-primary:hover {
+  background-color: var(--primary-blue-dark);
+  border-color: var(--primary-blue-dark);
 }
 
-.auth-card button:hover {
-  background: var(--primary-blue-dark);
+/* ===============================
+   INPUT FOCUS
+   =============================== */
+.form-control:focus {
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 0.2rem rgba(79, 110, 247, 0.15);
 }
 
-/* Footer */
-.auth-footer {
-  margin-top: 20px;
-  font-size: 14px;
-  color: var(--text-muted);
+/* ===============================
+   TEXT MUTED OVERRIDE
+   =============================== */
+.text-muted {
+  color: var(--text-muted) !important;
 }
 
-.auth-footer a {
-  color: var(--primary-blue);
-  text-decoration: none;
-  font-weight: 500;
-}
-
-/* Responsive tweaks */
+/* ===============================
+   MOBILE TWEAKS
+   =============================== */
 @media (max-width: 480px) {
-  .auth-card {
-    padding: 24px;
-  }
-
-  .auth-header {
-    padding: 0 16px;
+  .card-body {
+    padding: 22px;
   }
 }

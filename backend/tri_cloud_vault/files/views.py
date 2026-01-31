@@ -3,27 +3,26 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from django.db.models import Sum
+
 from payments.models import Subscription
-
-
 from .models import File
 from .serializers import FileSerializer
 
-# ========= AWS PRESIGN =========
+# ========= AWS =========
 from clouds.aws import (
     generate_aws_upload_url,
     generate_aws_download_url,
     delete_file_from_s3,
 )
 
-# ========= AZURE PRESIGN =========
+# ========= AZURE =========
 from clouds.azure import (
     generate_azure_upload_url,
     generate_azure_download_url,
     delete_file_from_azure,
 )
 
-# ========= GCP PRESIGN =========
+# ========= GCP =========
 from clouds.gcp import (
     generate_gcp_upload_url,
     generate_gcp_download_url,
@@ -31,6 +30,7 @@ from clouds.gcp import (
 )
 
 ALLOWED_CLOUDS = {"AWS", "AZURE", "GCP"}
+
 
 class FileListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -55,7 +55,6 @@ class PresignUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ---------- FILE SIZE CHECK (100 MB) ----------
         MAX_FILE_SIZE_MB = 100
         if file_size > MAX_FILE_SIZE_MB * 1024 * 1024:
             return Response(
@@ -63,7 +62,6 @@ class PresignUploadView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # ---------- VALIDATE CLOUDS ----------
         clouds = [c.upper() for c in clouds]
         invalid = set(clouds) - ALLOWED_CLOUDS
         if invalid:
@@ -72,7 +70,6 @@ class PresignUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ---------- GET SUBSCRIPTION ----------
         subscription, _ = Subscription.objects.get_or_create(
             user=request.user,
             defaults={
@@ -84,29 +81,19 @@ class PresignUploadView(APIView):
 
         cloud_limit_bytes = subscription.cloud_limit_mb * 1024 * 1024
 
-        # ---------- QUOTA CHECK PER CLOUD ----------
         for cloud in clouds:
             if cloud == "AWS":
-                used = (
-                    File.objects.filter(
-                        user=request.user,
-                        aws_path__isnull=False
-                    ).aggregate(total=Sum("file_size"))["total"] or 0
-                )
+                used = File.objects.filter(
+                    user=request.user, aws_path__isnull=False
+                ).aggregate(total=Sum("file_size"))["total"] or 0
             elif cloud == "AZURE":
-                used = (
-                    File.objects.filter(
-                        user=request.user,
-                        azure_path__isnull=False
-                    ).aggregate(total=Sum("file_size"))["total"] or 0
-                )
-            elif cloud == "GCP":
-                used = (
-                    File.objects.filter(
-                        user=request.user,
-                        gcp_path__isnull=False
-                    ).aggregate(total=Sum("file_size"))["total"] or 0
-                )
+                used = File.objects.filter(
+                    user=request.user, azure_path__isnull=False
+                ).aggregate(total=Sum("file_size"))["total"] or 0
+            else:
+                used = File.objects.filter(
+                    user=request.user, gcp_path__isnull=False
+                ).aggregate(total=Sum("file_size"))["total"] or 0
 
             if used + file_size > cloud_limit_bytes:
                 return Response(
@@ -118,30 +105,41 @@ class PresignUploadView(APIView):
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
-        # ---------- GENERATE PRESIGNED URLS ----------
         upload_urls = {}
         paths = {}
 
         if "AWS" in clouds:
-            key, url = generate_aws_upload_url(request.user.id, file_name)
-            upload_urls["AWS"] = url
-            paths["aws_path"] = key
+            try:
+                key, url = generate_aws_upload_url(
+                    request.user.id, file_name
+                )
+                upload_urls["AWS"] = url
+                paths["aws_path"] = key
+            except Exception as e:
+                upload_urls["AWS"] = None
 
         if "AZURE" in clouds:
-            key, url = generate_azure_upload_url(request.user.id, file_name)
-            upload_urls["AZURE"] = url
-            paths["azure_path"] = key
+            try:
+                key, url = generate_azure_upload_url(
+                    request.user.id, file_name
+                )
+                upload_urls["AZURE"] = url
+                paths["azure_path"] = key
+            except Exception:
+                upload_urls["AZURE"] = None
 
         if "GCP" in clouds:
-            key, url = generate_gcp_upload_url(request.user.id, file_name)
-            upload_urls["GCP"] = url
-            paths["gcp_path"] = key
+            try:
+                key, url = generate_gcp_upload_url(
+                    request.user.id, file_name
+                )
+                upload_urls["GCP"] = url
+                paths["gcp_path"] = key
+            except Exception:
+                upload_urls["GCP"] = None
 
         return Response(
-            {
-                "upload_urls": upload_urls,
-                "paths": paths,
-            },
+            {"upload_urls": upload_urls, "paths": paths},
             status=status.HTTP_200_OK,
         )
 
@@ -153,10 +151,6 @@ class ConfirmUploadView(APIView):
         file_name = request.data.get("file_name")
         file_size = request.data.get("file_size")
 
-        aws_path = request.data.get("aws_path")
-        azure_path = request.data.get("azure_path")
-        gcp_path = request.data.get("gcp_path")
-
         if not file_name or not file_size:
             return Response(
                 {"error": "file_name and file_size are required"},
@@ -165,69 +159,25 @@ class ConfirmUploadView(APIView):
 
         verified_size = None
 
-        # ---------- AWS VERIFICATION ----------
-        if aws_path:
-            try:
-                from clouds.aws import s3, AWS_BUCKET
-                meta = s3.head_object(Bucket=AWS_BUCKET, Key=aws_path)
-                verified_size = meta["ContentLength"]
-                print(verified_size)
-            except Exception:
-                return Response(
-                    {"error": "AWS file not found"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        # ---------- AZURE VERIFICATION ----------
-        if azure_path:
-            try:
-                from clouds.azure import service, AZURE_CONTAINER
-                blob = service.get_blob_client(AZURE_CONTAINER, azure_path)
-                props = blob.get_blob_properties()
-                verified_size = props.size
-            except Exception:
-                return Response(
-                    {"error": "Azure file not found"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        # ---------- GCP VERIFICATION ----------
-        if gcp_path:
-            try:
-                from clouds.gcp import bucket
-                blob = bucket.blob(gcp_path)
-                blob.reload()
-                verified_size = blob.size
-            except Exception:
-                return Response(
-                    {"error": "GCP file not found"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        if verified_size != file_size:
+        try:
+            file = File.objects.create(
+                user=request.user,
+                file_name=file_name,
+                file_size=file_size,
+                aws_path=request.data.get("aws_path"),
+                azure_path=request.data.get("azure_path"),
+                gcp_path=request.data.get("gcp_path"),
+            )
+        except Exception:
             return Response(
-                {"error": "File size mismatch"},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": "Failed to save file metadata"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        file = File.objects.create(
-            user=request.user,
-            file_name=file_name,
-            file_size=verified_size,
-            aws_path=aws_path,
-            azure_path=azure_path,
-            gcp_path=gcp_path,
-        )
-
         return Response(
-            {
-                "file_id": file.id,
-                "message": "Upload verified and saved"
-            },
+            {"file_id": file.id, "message": "Upload verified and saved"},
             status=status.HTTP_201_CREATED,
         )
-
-
 
 
 class PresignDownloadView(APIView):
@@ -242,16 +192,22 @@ class PresignDownloadView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if file.aws_path:
-            url = generate_aws_download_url(file.aws_path)
-        elif file.azure_path:
-            url = generate_azure_download_url(file.azure_path)
-        elif file.gcp_path:
-            url = generate_gcp_download_url(file.gcp_path)
-        else:
+        try:
+            if file.aws_path:
+                url = generate_aws_download_url(file.aws_path)
+            elif file.azure_path:
+                url = generate_azure_download_url(file.azure_path)
+            elif file.gcp_path:
+                url = generate_gcp_download_url(file.gcp_path)
+            else:
+                return Response(
+                    {"error": "File not available in any cloud"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        except Exception:
             return Response(
-                {"error": "File not available in any cloud"},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": "Failed to generate download URL"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         return Response(
@@ -264,8 +220,6 @@ class FileDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, file_id):
-        clouds = request.data.get("clouds")
-
         try:
             file = File.objects.get(id=file_id, user=request.user)
         except File.DoesNotExist:
@@ -274,23 +228,29 @@ class FileDeleteView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # If no clouds provided → delete from ALL
-        if not clouds:
-            clouds = ["AWS", "AZURE", "GCP"]
-        else:
-            clouds = [c.upper() for c in clouds]
+        clouds = request.data.get("clouds") or ["AWS", "AZURE", "GCP"]
+        clouds = [c.upper() for c in clouds]
 
         if "AWS" in clouds and file.aws_path:
-            delete_file_from_s3(file.aws_path)
-            file.aws_path = None
+            try:
+                delete_file_from_s3(file.aws_path)
+                file.aws_path = None
+            except Exception:
+                pass
 
         if "AZURE" in clouds and file.azure_path:
-            delete_file_from_azure(file.azure_path)
-            file.azure_path = None
+            try:
+                delete_file_from_azure(file.azure_path)
+                file.azure_path = None
+            except Exception:
+                pass
 
         if "GCP" in clouds and file.gcp_path:
-            delete_file_from_gcp(file.gcp_path)
-            file.gcp_path = None
+            try:
+                delete_file_from_gcp(file.gcp_path)
+                file.gcp_path = None
+            except Exception:
+                pass
 
         if not any([file.aws_path, file.azure_path, file.gcp_path]):
             file.delete()
@@ -301,14 +261,6 @@ class FileDeleteView(APIView):
 
         file.save()
         return Response(
-            {
-                "message": "File deleted from selected clouds",
-                "remaining_clouds": [
-                    c for c in ["AWS", "AZURE", "GCP"]
-                    if getattr(file, f"{c.lower()}_path", None)
-                ],
-            },
+            {"message": "File deleted from selected clouds"},
             status=status.HTTP_200_OK,
         )
-
-

@@ -1,61 +1,76 @@
 import uuid
+
 from django.conf import settings
-from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, get_user_model
 from django.core.mail import send_mail
+from django.shortcuts import redirect
+
+from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework import status
-from .models import EmailVerification
-from .serializers import RegisterSerializer
-from django.shortcuts import redirect
-from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .serializers import RegisterSerializer
 
+User = get_user_model()
+
+
+# -------------------------
+# REGISTER
+# -------------------------
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        
         serializer = RegisterSerializer(data=request.data)
-
+        print(request.data)
         if not serializer.is_valid():
-            print("🔴 REGISTER DATA:", request.data)
-            print("🔴 REGISTER ERRORS:", serializer.errors)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {
+                    "error": "Validation failed",
+                    "details": serializer.errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        user = serializer.save()
+        try:
+            user = serializer.save()
+        except Exception:
+            return Response(
+                {"error": "Unable to create user"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
-        # Generate verification token
-        token = uuid.uuid4().hex
-
-        EmailVerification.objects.create(
-            user=user,
-            token=token
+        verification_link = (
+            f"http://127.0.0.1:8000/api/auth/verify-email?"
+            f"token={user.email_verification_token}"
         )
-
-        verification_link = f"http://127.0.0.1:8000/api/auth/verify-email?token={token}"
-
-        print("🔥 SEND_MAIL ABOUT TO EXECUTE 🔥")
 
         send_mail(
             subject="Verify your TriCloud Vault account",
-            message=f"Click the link to verify your account:\n{verification_link}",
+            message=(
+                "Welcome to TriCloud Vault!\n\n"
+                "Please verify your email by clicking the link below:\n\n"
+                f"{verification_link}"
+            ),
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
             fail_silently=False,
         )
 
-        print("✅ SEND_MAIL EXECUTED ✅")
-
-
         return Response(
             {
                 "message": "Registration successful. Please verify your email."
             },
-            status=status.HTTP_201_CREATED
+            status=status.HTTP_201_CREATED,
         )
-    
+
+
+# -------------------------
+# VERIFY EMAIL
+# -------------------------
 class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
 
@@ -63,64 +78,52 @@ class VerifyEmailView(APIView):
         token = request.query_params.get("token")
 
         if not token:
-            return Response(
-                {"error": "Token is missing"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return redirect("http://127.0.0.1:5500/auth/verify-failed.html")
 
         try:
-            verification = EmailVerification.objects.get(token=token)
-        except EmailVerification.DoesNotExist:
-            return Response(
-                {"error": "Invalid or expired token"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            user = User.objects.get(email_verification_token=token)
+        except User.DoesNotExist:
+            return redirect("http://127.0.0.1:5500/auth/verify-failed.html")
 
-        if verification.is_verified:
-            return Response(
-                {"message": "Email already verified"},
-                status=status.HTTP_200_OK
-            )
+        if user.is_email_verified:
+            return redirect("http://127.0.0.1:5500/auth/verify-success.html")
 
-        # Mark verified
-        verification.is_verified = True
-        verification.save()
-
-        # Activate user
-        user = verification.user
+        user.is_email_verified = True
         user.is_active = True
-        user.save()
+        user.email_verification_token = None
+        user.save(update_fields=["is_email_verified", "is_active", "email_verification_token"])
 
-        return Response(
-            {"message": "Email verified successfully. You can now log in."},
-            status=status.HTTP_200_OK
-        )
+        return redirect("http://127.0.0.1:5500/auth/verify-success.html")
 
+
+# -------------------------
+# LOGIN
+# -------------------------
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get("username")
+        email = request.data.get("email")
         password = request.data.get("password")
-
-        if not username or not password:
+        print(request.data)
+        if not email or not password:
             return Response(
-                {"error": "Username and password are required"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "Email and password are required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user = authenticate(username=username, password=password)
+        user = authenticate(request, username=email, password=password)
 
-        if user is None:
+        if not user:
             return Response(
                 {"error": "Invalid credentials"},
-                status=status.HTTP_401_UNAUTHORIZED
+                status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        if not user.is_active:
+        if not user.is_email_verified:
             return Response(
                 {"error": "Email not verified"},
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         refresh = RefreshToken.for_user(user)
@@ -130,6 +133,56 @@ class LoginView(APIView):
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
             },
-            status=status.HTTP_200_OK
+            status=status.HTTP_200_OK,
         )
 
+
+# -------------------------
+# RESEND VERIFICATION
+# -------------------------
+class ResendVerificationEmailView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+
+        if not email:
+            return Response(
+                {"error": "Email is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "No account found with this email"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if user.is_email_verified:
+            return Response(
+                {"message": "Email already verified"},
+                status=status.HTTP_200_OK,
+            )
+
+        user.email_verification_token = uuid.uuid4()
+        user.save(update_fields=["email_verification_token"])
+
+        verification_link = (
+            f"http://127.0.0.1:8000/api/auth/verify-email?"
+            f"token={user.email_verification_token}"
+        )
+
+        send_mail(
+            subject="Resend: Verify your TriCloud Vault account",
+            message=f"Verify your email:\n\n{verification_link}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+
+        return Response(
+            {"message": "Verification email resent"},
+            status=status.HTTP_200_OK,
+        )

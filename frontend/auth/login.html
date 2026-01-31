@@ -4,49 +4,96 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Login | TriCloud Vault</title>
+
+  <!-- Bootstrap CSS -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+
+  <!-- Existing auth styles -->
   <link rel="stylesheet" href="../css/auth.css" />
 </head>
 
-<body>
-  <header class="auth-header">
-    <div class="logo">☁️ TriCloud Vault</div>
-    <nav>
-      <a href="login.html">Login</a>
-      <a href="register.html">Register</a>
-    </nav>
-  </header>
+<body class="bg-light">
 
-  <main class="auth-wrapper">
-    <div class="auth-card">
-      <h2>Login</h2>
+  <!-- HEADER -->
+  <nav class="navbar bg-white border-bottom px-3">
+    <div class="container-fluid">
+      <span class="navbar-brand fw-semibold">☁️ TriCloud Vault</span>
 
-      <form id="loginForm">
-        <input
-          type="text"
-          name="username"
-          placeholder="Username"
-          required
-        />
+      <div class="d-flex gap-3">
+        <a href="login.html" class="text-decoration-none fw-medium">Login</a>
+        <a href="register.html" class="text-decoration-none text-muted">Register</a>
+      </div>
+    </div>
+  </nav>
 
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          required
-        />
+  <!-- LOGIN CARD -->
+  <main class="container d-flex align-items-center justify-content-center" style="min-height: calc(100vh - 64px);">
+    <div class="row w-100 justify-content-center">
+      <div class="col-12 col-sm-10 col-md-6 col-lg-4">
+        <div class="card shadow-sm">
+          <div class="card-body p-4">
 
-        <button type="submit">Login</button>
-      </form>
+            <h4 class="fw-semibold text-center mb-4">Login</h4>
 
-      <p class="auth-footer">
-        Don’t have an account?
-        <a href="register.html">Register</a>
-      </p>
+            <form id="loginForm">
+              <div class="mb-3">
+                <input
+                  type="text"
+                  name="username"
+                  class="form-control"
+                  placeholder="Username"
+                  required
+                />
+              </div>
+
+              <div class="mb-3">
+                <input
+                  type="password"
+                  name="password"
+                  class="form-control"
+                  placeholder="Password"
+                  required
+                />
+              </div>
+
+              <button type="submit" class="btn btn-primary w-100">
+                Login
+              </button>
+              <p
+  id="login-error"
+  class="text-danger text-center mt-3"
+  style="display:none;"
+></p>
+
+            </form>
+
+            <p class="text-center text-muted mt-3 mb-0">
+              Don’t have an account?
+              <a href="register.html" class="fw-medium text-decoration-none">
+                Register
+              </a>
+            </p>
+
+            <!-- 🔹 Resend verification entry -->
+            <p class="text-center text-muted mt-2 mb-0">
+              Didn’t receive the verification email?
+              <a href="resend-verification.html" class="fw-medium text-decoration-none">
+                Resend
+              </a>
+            </p>
+
+          </div>
+        </div>
+      </div>
     </div>
   </main>
 
-  <!-- IMPORTANT: order matters -->
+  <!-- JS FILES -->
   <script src="../js/config.js"></script>
   <script src="../js/auth.js"></script>
+
 </body>
 </html>

@@ -1,12 +1,27 @@
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AbstractUser
 from django.db import models
+import uuid
 
 
-class EmailVerification(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    token = models.CharField(max_length=255, unique=True)
-    is_verified = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+class User(AbstractUser):
+    """
+    Minimal custom user model.
+    Uses Django's built-in auth features safely.
+    """
+
+    email = models.EmailField(unique=True)
+
+    # Email verification (minimal setup)
+    is_email_verified = models.BooleanField(default=False)
+    email_verification_token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        null=True,
+        blank=True
+    )
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = ["username"]
 
     def __str__(self):
-        return f"{self.user.email} - Verified: {self.is_verified}"
+        return self.email

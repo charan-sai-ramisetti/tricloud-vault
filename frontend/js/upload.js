@@ -7,6 +7,8 @@ let uploadResults = {};
 document.addEventListener("change", function (e) {
   if (e.target && e.target.id === "fileInput") {
     const label = document.getElementById("selected-file-text");
+    if (!label) return;
+
     if (e.target.files.length > 0) {
       label.innerText = e.target.files[0].name;
     } else {
@@ -19,8 +21,9 @@ document.addEventListener("change", function (e) {
    HARD RESET UPLOAD FORM
    =============================== */
 function resetUploadForm() {
-  // HARD reset file input (browser-safe)
   const wrapper = document.getElementById("file-input-wrapper");
+  if (!wrapper) return;
+
   wrapper.innerHTML = `
     <label class="file-picker">
       <input type="file" id="fileInput" hidden />
@@ -28,7 +31,6 @@ function resetUploadForm() {
     </label>
   `;
 
-  // Reset cloud checkboxes
   const checkboxes = document.querySelectorAll(
     "#cloudSelect input[type='checkbox']"
   );
@@ -36,26 +38,38 @@ function resetUploadForm() {
 }
 
 /* ===============================
+   SAFE BUTTON HANDLER
+   =============================== */
+function setUploadButton(disabled, text) {
+  const btn = document.getElementById("uploadBtn");
+  if (!btn) return;
+
+  btn.disabled = disabled;
+  if (text) btn.innerText = text;
+}
+
+/* ===============================
    START UPLOAD
    =============================== */
 function startUpload() {
+  setUploadButton(true, "Uploading...");
+
   const fileInput = document.getElementById("fileInput");
   const cloudCheckboxes = document.querySelectorAll(
     "#cloudSelect input[type='checkbox']:checked"
   );
-  const uploadBtn = document.querySelector(".primary-btn");
 
-  if (!fileInput.files.length) {
+  if (!fileInput || !fileInput.files.length) {
     alert("Please select a file");
+    setUploadButton(false, "Upload");
     return;
   }
 
   if (cloudCheckboxes.length === 0) {
     alert("Please select at least one cloud");
+    setUploadButton(false, "Upload");
     return;
   }
-
-  uploadBtn.disabled = true;
 
   const file = fileInput.files[0];
   const clouds = Array.from(cloudCheckboxes).map(cb => cb.value);
@@ -90,9 +104,13 @@ function startUpload() {
         uploadToCloudParallel(file, cloud, data.upload_urls[cloud])
           .then(() => {
             uploadResults[cloud] = true;
+
             if (cloud === "AWS") lastUploadMeta.aws_path = data.paths.aws_path;
             if (cloud === "AZURE") lastUploadMeta.azure_path = data.paths.azure_path;
             if (cloud === "GCP") lastUploadMeta.gcp_path = data.paths.gcp_path;
+          })
+          .catch(() => {
+            uploadResults[cloud] = false;
           })
       );
 
@@ -103,7 +121,7 @@ function startUpload() {
 
         if (successClouds.length === 0) {
           alert("Upload failed on all selected clouds");
-          uploadBtn.disabled = false;
+          setUploadButton(false, "Upload");
           return;
         }
 
@@ -113,7 +131,7 @@ function startUpload() {
     .catch(err => {
       console.error(err);
       alert("Failed to start upload");
-      uploadBtn.disabled = false;
+      setUploadButton(false, "Upload");
     });
 }
 
@@ -123,8 +141,11 @@ function startUpload() {
 function uploadToCloudParallel(file, cloud, uploadUrl) {
   return new Promise((resolve, reject) => {
     const container = document.getElementById("upload-status-container");
+    if (!container) {
+      reject();
+      return;
+    }
 
-    // Show filename once
     let title = container.querySelector(".upload-title");
     if (!title) {
       title = document.createElement("div");
@@ -133,7 +154,6 @@ function uploadToCloudParallel(file, cloud, uploadUrl) {
       container.appendChild(title);
     }
 
-    // Per-cloud status
     const statusBox = document.createElement("div");
     statusBox.className = "upload-status";
     statusBox.innerHTML = `
@@ -173,7 +193,7 @@ function uploadToCloudParallel(file, cloud, uploadUrl) {
 
         setTimeout(() => {
           statusBox.remove();
-          if (container.querySelectorAll(".upload-status").length === 0) {
+          if (container.querySelectorAll(".upload-status").length === 0 && title) {
             title.remove();
           }
         }, 500);
@@ -209,10 +229,7 @@ function confirmUpload(successClouds) {
 
   fetch(`${API_BASE_URL}/files/confirm-upload/`, {
     method: "POST",
-    headers: {
-      ...authHeaders(),
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(),
     body: JSON.stringify(payload)
   })
     .then(res => {
@@ -226,12 +243,15 @@ function confirmUpload(successClouds) {
       loadStorageSummary();
 
       resetUploadForm();
-      document.getElementById("upload-status-container").innerHTML = "";
-      document.querySelector(".primary-btn").disabled = false;
+
+      const container = document.getElementById("upload-status-container");
+      if (container) container.innerHTML = "";
+
+      setUploadButton(false, "Upload");
     })
     .catch(err => {
       console.error(err);
       alert("Upload verification failed");
-      document.querySelector(".primary-btn").disabled = false;
+      setUploadButton(false, "Upload");
     });
 }
