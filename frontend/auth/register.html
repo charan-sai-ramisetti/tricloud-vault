@@ -5,145 +5,81 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Register | TriCloud Vault</title>
 
-  <!-- Bootstrap CSS -->
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-    rel="stylesheet"
-  />
-
-  <!-- Auth theme -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="../css/auth.css" />
 </head>
 
 <body class="bg-light">
 
-  <!-- ===============================
-       HEADER
-       =============================== -->
-  <nav class="navbar bg-white border-bottom px-3">
-    <div class="container-fluid">
-      <span class="navbar-brand fw-semibold">☁️ TriCloud Vault</span>
+<nav class="navbar bg-white border-bottom px-3">
+  <div class="container-fluid">
+    <span class="navbar-brand fw-semibold">TriCloud Vault</span>
+    <div class="d-flex gap-3">
+      <a href="login.html" class="text-muted text-decoration-none">Login</a>
+      <a href="register.html" class="fw-medium text-decoration-none">Register</a>
+    </div>
+  </div>
+</nav>
 
-      <div class="d-flex gap-3">
-        <a href="login.html" class="text-decoration-none text-muted">Login</a>
-        <a href="register.html" class="text-decoration-none fw-medium">Register</a>
+<main class="container d-flex align-items-center justify-content-center" style="min-height: calc(100vh - 64px);">
+  <div class="col-12 col-sm-10 col-md-6 col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+
+        <h4 class="fw-semibold text-center mb-4">Create Account</h4>
+
+        <input id="username" class="form-control mb-3"
+               placeholder="Username (no spaces)"
+               pattern="^[a-zA-Z0-9._]+$"
+               required />
+
+        <input id="email" type="email" class="form-control mb-3"
+               placeholder="Email" required />
+
+        <input id="password" type="password" class="form-control mb-3"
+               placeholder="Password (min 8 chars)"
+               required />
+
+        <button class="btn btn-primary w-100" onclick="validateAndRegister()">Register</button>
+
+        <p class="text-center text-muted mt-3 mb-0">
+          Already have an account?
+          <a href="login.html" class="fw-medium text-decoration-none">Login</a>
+        </p>
+
       </div>
     </div>
-  </nav>
+  </div>
+</main>
 
-  <!-- ===============================
-       REGISTER CARD
-       =============================== -->
-  <main class="container d-flex align-items-center justify-content-center" style="min-height: calc(100vh - 64px);">
-    <div class="row w-100 justify-content-center">
-      <div class="col-12 col-sm-10 col-md-6 col-lg-4">
-        <div class="card shadow-sm">
-          <div class="card-body">
+<script src="../js/config.js"></script>
+<script src="../js/auth.js"></script>
 
-            <h4 class="fw-semibold text-center mb-4">Create Account</h4>
+<script>
+function isValidPassword(pwd) {
+  return pwd.length >= 8 && /\d/.test(pwd) && /[a-zA-Z]/.test(pwd);
+}
 
-            <!-- Username -->
-            <div class="mb-3">
-              <input
-                type="text"
-                id="name"
-                class="form-control"
-                placeholder="Username (no spaces)"
-                required
-                pattern="^[a-zA-Z0-9._]+$"
-                title="Username can contain only letters, numbers, dots, and underscores. No spaces allowed."
-              />
-              <div class="form-text text-muted">
-                Only letters, numbers, <code>.</code> and <code>_</code>. No spaces.
-              </div>
-            </div>
+function validateAndRegister() {
+  const username = document.getElementById("username");
+  const email = document.getElementById("email");
+  const password = document.getElementById("password");
 
-            <!-- Email -->
-            <div class="mb-3">
-              <input
-                type="email"
-                id="email"
-                class="form-control"
-                placeholder="Email"
-                required
-              />
-            </div>
+  username.value = username.value.trim();
 
-            <!-- Password -->
-            <div class="mb-3">
-              <input
-                type="password"
-                id="password"
-                class="form-control"
-                placeholder="Password"
-                required
-                minlength="6"
-              />
-            </div>
+  if (!username.checkValidity()) {
+    alert("Username can contain letters, numbers, . and _ only.");
+    return;
+  }
 
-            <button
-              class="btn btn-primary w-100"
-              onclick="validateAndRegister()"
-            >
-              Register
-            </button>
+  if (!isValidPassword(password.value)) {
+    alert("Password must be at least 8 characters and include letters and numbers.");
+    return;
+  }
 
-            <p class="text-center text-muted mt-3 mb-0">
-              Already have an account?
-              <a href="login.html" class="fw-medium text-decoration-none">
-                Login
-              </a>
-            </p>
-
-          </div>
-        </div>
-      </div>
-    </div>
-  </main>
-
-  <!-- ===============================
-       JS FILES
-       =============================== -->
-  <script src="../js/config.js"></script>
-  <script src="../js/auth.js"></script>
-
-  <!-- ===============================
-       BASIC CLIENT VALIDATION
-       =============================== -->
-  <script>
-    function validateAndRegister() {
-      const username = document.getElementById("name");
-      const email = document.getElementById("email");
-      const password = document.getElementById("password");
-
-      // Trim spaces
-      username.value = username.value.trim();
-
-      // Username: no spaces
-      if (username.value.includes(" ")) {
-        alert("Username must not contain spaces.");
-        username.focus();
-        return;
-      }
-
-      // Pattern validation (HTML5 backup)
-      if (!username.checkValidity()) {
-        alert(username.title);
-        username.focus();
-        return;
-      }
-
-      // Password length
-      if (password.value.length < 6) {
-        alert("Password must be at least 6 characters long.");
-        password.focus();
-        return;
-      }
-
-      // All good → call existing register()
-      register();
-    }
-  </script>
+  register(username.value, email.value, password.value);
+}
+</script>
 
 </body>
 </html>

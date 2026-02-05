@@ -12,6 +12,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .serializers import RegisterSerializer
+from django.utils import timezone
+from datetime import timedelta
 
 User = get_user_model()
 
@@ -185,4 +187,88 @@ class ResendVerificationEmailView(APIView):
         return Response(
             {"message": "Verification email resent"},
             status=status.HTTP_200_OK,
+        )
+
+from django.utils import timezone
+from datetime import timedelta
+
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+
+        if not email:
+            return Response(
+                {"error": "Email is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            # IMPORTANT: do NOT reveal if email exists
+            return Response(
+                {"message": "If the email exists, a reset link was sent"},
+                status=status.HTTP_200_OK
+            )
+
+        user.reset_password_token = uuid.uuid4()
+        user.reset_password_expiry = timezone.now() + timedelta(minutes=30)
+        user.save(update_fields=["reset_password_token", "reset_password_expiry"])
+
+        reset_link = (
+            f"http://127.0.0.1:5500/auth/reset-password.html?"
+            f"token={user.reset_password_token}"
+        )
+
+        send_mail(
+            subject="Reset your TriCloud Vault password",
+            message=f"Reset your password:\n\n{reset_link}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False
+        )
+
+        return Response(
+            {"message": "If the email exists, a reset link was sent"},
+            status=status.HTTP_200_OK
+        )
+
+class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get("token")
+        password = request.data.get("password")
+
+        if not token or not password:
+            return Response(
+                {"error": "Token and password required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = User.objects.get(
+                reset_password_token=token,
+                reset_password_expiry__gt=timezone.now()
+            )
+        except User.DoesNotExist:
+            return Response(
+                {"error": "Invalid or expired token"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.set_password(password)
+        user.reset_password_token = None
+        user.reset_password_expiry = None
+        user.save(update_fields=[
+            "password",
+            "reset_password_token",
+            "reset_password_expiry"
+        ])
+
+        return Response(
+            {"message": "Password reset successful"},
+            status=status.HTTP_200_OK
         )

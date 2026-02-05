@@ -189,7 +189,7 @@ function uploadToCloudParallel(file, cloud, uploadUrl) {
     xhr.onload = () => {
       if (xhr.status === 200 || xhr.status === 201) {
         progressEl.style.width = "100%";
-        statusText.innerText = "Uploaded ✅";
+        statusText.innerText = "Uploaded";
 
         setTimeout(() => {
           statusBox.remove();
@@ -200,13 +200,13 @@ function uploadToCloudParallel(file, cloud, uploadUrl) {
 
         resolve();
       } else {
-        statusText.innerText = "Failed ❌";
+        statusText.innerText = "Failed";
         reject();
       }
     };
 
     xhr.onerror = () => {
-      statusText.innerText = "Failed ❌";
+      statusText.innerText = "Failed";
       reject();
     };
 

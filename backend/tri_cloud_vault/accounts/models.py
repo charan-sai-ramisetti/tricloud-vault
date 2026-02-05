@@ -20,6 +20,17 @@ class User(AbstractUser):
         blank=True
     )
 
+    reset_password_token = models.UUIDField(
+    null=True,
+    blank=True,
+    unique=True
+    )
+    reset_password_expiry = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
 
