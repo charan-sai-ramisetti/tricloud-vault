@@ -39,5 +39,9 @@ Thumbs.db
 # Node (if frontend)
 node_modules/
 
+#zip files
+
+*.zip
+
 # Logs
 *.log

@@ -36,7 +36,7 @@ TriCloud Vault is a multi-cloud storage platform that allows users to securely u
 HTML, CSS, JavaScript  
 
 **Backend:**  
-FastAPI (or Django), PostgreSQL, Cloud SDKs (boto3, azure-storage-blob, google-cloud-storage)
+Django, PostgreSQL(rds), Cloud SDKs (boto3, azure-storage-blob, google-cloud-storage)
 
 **Cloud Providers:**  
 AWS, Azure, Google Cloud Platform

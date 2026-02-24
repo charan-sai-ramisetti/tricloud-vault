@@ -92,7 +92,6 @@ function updateStorageBar(cloud, info) {
    =============================== */
 
 function loadFolders() {
-  console.log("loadFolders called");
   fetch(`${API_BASE_URL}/storage/folders/`, {
     headers: authHeaders()
   })

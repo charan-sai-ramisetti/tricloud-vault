@@ -7,11 +7,13 @@ resource "aws_s3_bucket_cors_configuration" "tricloud_cors" {
 
   cors_rule {
     allowed_headers = ["*"]
-    allowed_methods = ["PUT", "POST", "GET"]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE"]
     allowed_origins = [
       "http://localhost:5500",
       "http://127.0.0.1:5500",
-      "https://urban-chainsaw-r49qv7gvx57c955-5500.app.github.dev"
+      "https://urban-chainsaw-r49qv7gvx57c955-5500.app.github.dev",
+      "https://tricloudvault.charansai.me",
+      "https://charansai.me"
     ]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000
