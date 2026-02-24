@@ -80,6 +80,7 @@ function startUpload() {
     body: JSON.stringify({
       file_name: file.name,
       file_size: file.size,
+      file_type: file.type,
       clouds: clouds
     })
   })

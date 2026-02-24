@@ -13,7 +13,7 @@ s3 = boto3.client(
 )
 
 
-def generate_aws_upload_url(user_id, file_name):
+def generate_aws_upload_url(user_id, file_name,file_type):
     try:
         key = f"users/{user_id}/{uuid.uuid4()}_{file_name}"
 
@@ -22,6 +22,7 @@ def generate_aws_upload_url(user_id, file_name):
             Params={
                 "Bucket": AWS_BUCKET,
                 "Key": key,
+                "ContentType": file_type
             },
             ExpiresIn=3600,
         )
