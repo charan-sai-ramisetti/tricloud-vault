@@ -47,20 +47,32 @@ class PresignUploadView(APIView):
     def post(self, request):
         file_name = request.data.get("file_name")
         file_size = request.data.get("file_size")
+        file_type=request.data.get("file_type")
         clouds = request.data.get("clouds", [])
 
-        if not file_name or not file_size or not clouds:
+        if not file_name or not file_size or not file_type or not clouds:
             return Response(
-                {"error": "file_name, file_size and clouds are required"},
+                {"error": "file_name, file_size, file_type and clouds are required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        MAX_FILE_SIZE_MB = 100
-        if file_size > MAX_FILE_SIZE_MB * 1024 * 1024:
+        MAX_FILE_SIZE_MB_DEFAULT = 100
+        MAX_FILE_SIZE_MB_EXEMPT = 51200  # 50 GB
+
+        user = request.user
+
+        # Decide max limit based on email
+        if user.email == "charansairamisetti@gmail.com":
+            max_size_mb = MAX_FILE_SIZE_MB_EXEMPT
+        else:
+            max_size_mb = MAX_FILE_SIZE_MB_DEFAULT
+
+        if file_size > max_size_mb * 1024 * 1024:
             return Response(
-                {"error": "File size exceeds 100 MB limit"},
+                {"error": f"File size exceeds {max_size_mb} MB limit"},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
 
         clouds = [c.upper() for c in clouds]
         invalid = set(clouds) - ALLOWED_CLOUDS
@@ -111,7 +123,7 @@ class PresignUploadView(APIView):
         if "AWS" in clouds:
             try:
                 key, url = generate_aws_upload_url(
-                    request.user.id, file_name
+                    request.user.id, file_name,file_type
                 )
                 upload_urls["AWS"] = url
                 paths["aws_path"] = key
