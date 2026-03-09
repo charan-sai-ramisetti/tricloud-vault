@@ -39,6 +39,7 @@ ALLOWED_HOSTS = [
 # --------------------------------------------------
 
 INSTALLED_APPS = [
+    "jazzmin",
     # Django
     "django.contrib.admin",
     "django.contrib.auth",
@@ -46,6 +47,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    'django.contrib.humanize',
 
     # Third-party
     "rest_framework",
@@ -58,6 +60,33 @@ INSTALLED_APPS = [
     "dashboard",
     "payments",
 ]
+
+JAZZMIN_SETTINGS = {
+
+    "site_title": "TriCloud Vault Admin",
+    "site_header": "TriCloud Vault",
+    "site_brand": "TriCloud Vault",
+
+    "icons": {
+        "accounts.User": "fas fa-users",
+        "files.File": "fas fa-file",
+        "payments.Payment": "fas fa-credit-card",
+        "payments.Subscription": "fas fa-crown",
+        "auth.Group": "fas fa-users-cog",
+    },
+
+    "custom_links": {
+        "auth": [{
+            "name": "User Groups",
+            "url": "admin:auth_group_changelist",
+            "icon": "fas fa-users-cog",
+        }]
+    },
+
+    "hide_apps": [
+        "auth"
+    ],
+}
 
 # --------------------------------------------------
 # MIDDLEWARE
@@ -76,15 +105,16 @@ MIDDLEWARE = [
 ]
 
 # --------------------------------------------------
-# CORS (LOCKED DOWN)
+# CORS 
 # --------------------------------------------------
 
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
-
 CORS_ALLOWED_ORIGINS = [
     "https://charansai.me",
     "https://www.charansai.me",
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
 ]
 
 # allow ALL subdomains like app.charansai.me
@@ -101,7 +131,7 @@ ROOT_URLCONF = "tri_cloud_vault.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -157,9 +187,13 @@ USE_TZ = True
 # STATIC FILES
 # --------------------------------------------------
 
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_URL = "/static/"
 
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, "static"),
+]
+
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 # --------------------------------------------------
 # DRF (NO BROWSABLE API)
 # --------------------------------------------------

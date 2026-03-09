@@ -20,7 +20,7 @@ module "aws_ec2" {
   project_name      = var.project_name
   environment       = var.environment
   subnet_id         = module.aws_vpc.private_subnet_ids[0]
-  security_group_id = module.aws_sg.backend_sg_id
+  security_group_id = module.aws_sg.backend_sg
   ami_id            = var.ami_id
   instance_type     = var.ec2_instance_type
 }
@@ -30,11 +30,25 @@ module "aws_alb" {
   project_name       = var.project_name
   environment        = var.environment
   subnet_ids         = module.aws_vpc.public_subnet_ids
-  security_group_id  = module.aws_sg.alb_sg_id
+  security_group_id  = module.aws_sg.alb_sg
   target_instance_id = module.aws_ec2.instance_id
   vpc_id             = module.aws_vpc.vpc_id
 }
+module "aws_rds" {
 
+  source = "./modules/aws/rds"
+
+  project_name = var.project_name
+  environment  = var.environment
+  
+  private_subnets = module.aws_vpc.private_subnet_ids
+
+  db_sg = module.aws_sg.rds_sg
+
+  db_name = "tricloud_vault"
+  db_user = "tricloud_vault"
+  db_password = var.db_password
+}
 module "aws_s3" {
   source       = "./modules/aws/s3-storage"
   project_name = var.project_name

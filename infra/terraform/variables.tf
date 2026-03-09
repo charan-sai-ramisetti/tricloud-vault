@@ -9,6 +9,11 @@ variable "availability_zones" { type = list(string) }
 
 variable "ami_id" {}
 variable "ec2_instance_type" {}
+variable "db_password" {
+  type      = string
+  sensitive = true
+}
+
 
 variable "azure_location" {}
 

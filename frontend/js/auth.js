@@ -4,8 +4,16 @@
 function showError(message) {
   const box = document.getElementById("login-error");
   if (!box) return;
+
   box.innerHTML = message;
   box.style.display = "block";
+
+  // 🔴 reset fields when error occurs
+  const emailInput = document.getElementById("loginEmail");
+  const passwordInput = document.getElementById("loginPassword");
+
+  if (emailInput) emailInput.value = "";
+  if (passwordInput) passwordInput.value = "";
 }
 
 // =========================
@@ -65,9 +73,10 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // ✅ Success
+      // ✅ SUCCESS
       localStorage.setItem("access_token", data.access);
       localStorage.setItem("refresh_token", data.refresh);
+
       window.location.href = "/dashboard/dashboard.html";
 
     } catch {
@@ -76,10 +85,12 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+
 // =========================
 // REGISTER
 // =========================
 window.register = function (username, email, password) {
+
   if (!username || !email || !password) {
     alert("All fields are required");
     return;
@@ -90,18 +101,39 @@ window.register = function (username, email, password) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, email, password })
   })
-    .then(async res => {
-      const data = await res.json().catch(() => ({}));
+  .then(async res => {
 
-      if (!res.ok) {
-        alert(data.error || "Registration failed");
-        return;
-      }
+    const data = await res.json().catch(() => ({}));
 
-      alert("Registration successful. Please verify your email.");
-      window.location.href = "/auth/login.html";
-    })
-    .catch(() => {
-      alert("Registration request failed. Please try again.");
-    });
+    if (!res.ok) {
+
+  if (data.error === "Email already exists") {
+      alert("Email already registered. Try logging in.");
+      document.getElementById("username").value="";
+      document.getElementById("email").value="";
+      document.getElementById("password").value="";
+      document.getElementById("confirmPassword").value="";
+      return;
+  }
+
+  if (data.error === "Username already exists") {
+      alert("Username already taken. Choose another.");
+      document.getElementById("username").value="";
+      document.getElementById("email").value="";
+      document.getElementById("password").value="";
+      document.getElementById("confirmPassword").value="";
+      return;
+  }
+
+}
+
+    alert("Registration successful. Please verify your email.");
+
+    window.location.href = "/auth/login.html";
+
+  })
+  .catch(() => {
+    alert("Registration request failed. Please try again.");
+  });
+
 };

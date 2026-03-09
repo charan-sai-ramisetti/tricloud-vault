@@ -21,8 +21,8 @@ User = get_user_model()
 # BASE URL CONFIG (CHANGE HERE ONLY)
 # ==================================================
 
-FRONTEND_BASE_URL = "https://tricloudvault.charansai.me"
-BACKEND_BASE_URL = "https://tricloudvault1.charansai.me"
+FRONTEND_BASE_URL = "http://localhost:5500"
+BACKEND_BASE_URL = "http://127.0.0.1:8001"
 
 # ==================================================
 # REGISTER
@@ -32,8 +32,25 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+
+        email = request.data.get("email")
+        username = request.data.get("username")
+
+        # CHECK EMAIL
+        if User.objects.filter(email=email).exists():
+            return Response(
+                {"error": "Email already exists"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # CHECK USERNAME
+        if User.objects.filter(username=username).exists():
+            return Response(
+                {"error": "Username already exists"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         serializer = RegisterSerializer(data=request.data)
-        print(request.data)
 
         if not serializer.is_valid():
             return Response(

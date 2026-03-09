@@ -26,3 +26,7 @@ output "gcp_bucket" {
 output "alb_dns_name" {
   value = module.aws_alb.alb_dns_name
 }
+
+output "rds_endpoint" {
+  value = module.aws_rds.rds_endpoint
+}

@@ -16,13 +16,48 @@
 
 <nav class="navbar bg-white border-bottom px-3">
   <div class="container-fluid">
+
     <span class="navbar-brand fw-semibold">TriCloud Vault</span>
+
     <div class="d-flex gap-3">
-      <a href="/auth/login.html" class="fw-medium text-decoration-none">Login</a>
-      <a href="/auth/register.html" class="text-muted text-decoration-none">Register</a>
+
+      <a href="/auth/login.html"
+         id="navLogin"
+         class="text-primary text-decoration-none fw-medium">
+        Login
+      </a>
+
+      <a href="/auth/register.html"
+         id="navRegister"
+         class="text-primary text-decoration-none fw-medium">
+        Register
+      </a>
+
+      <a href="http://127.0.0.1:8001/admin/"
+         id="navAdmin"
+         class="text-primary text-decoration-none fw-medium">
+        Admin Login
+      </a>
+
     </div>
+
   </div>
 </nav>
+<script>
+
+const path = window.location.pathname;
+
+if(path.includes("login")){
+    document.getElementById("navLogin").classList.remove("text-primary");
+    document.getElementById("navLogin").classList.add("text-muted");
+}
+
+if(path.includes("register")){
+    document.getElementById("navRegister").classList.remove("text-primary");
+    document.getElementById("navRegister").classList.add("text-muted");
+}
+
+</script>
 
 <main class="container d-flex align-items-center justify-content-center" style="min-height: calc(100vh - 64px);">
   <div class="col-12 col-sm-10 col-md-6 col-lg-4">
@@ -32,17 +67,30 @@
         <h4 class="fw-semibold text-center mb-4">Login</h4>
 
         <form id="loginForm">
-          <div class="mb-3">
-            <input type="email" id="loginEmail" class="form-control" placeholder="Email" required />
-          </div>
 
           <div class="mb-3">
-            <input type="password" id="loginPassword" class="form-control" placeholder="Password" required />
+            <label>Email <span class="text-danger">*</span></label>
+            <input type="email" id="loginEmail" class="form-control" required />
           </div>
 
-          <button type="submit" class="btn btn-primary w-100">Login</button>
+          <div class="mb-3 position-relative">
+            <label>Password <span class="text-danger">*</span></label>
+
+            <input type="password" id="loginPassword" class="form-control" required />
+
+            <span
+              onclick="togglePassword('loginPassword',this)"
+              style="position:absolute;right:10px;top:38px;cursor:pointer;">
+              👁
+            </span>
+          </div>
+
+          <button id="loginBtn" type="submit" class="btn btn-primary w-100">
+            Login
+          </button>
 
           <p id="login-error" class="text-danger text-center mt-3" style="display:none;"></p>
+
         </form>
 
         <p class="text-center mt-3 mb-0">
@@ -61,29 +109,41 @@
   </div>
 </main>
 
-<!-- IMPORTANT: absolute paths + correct order -->
 <script src="/js/config.js"></script>
 <script src="/js/auth.js"></script>
 
 <script>
+
+function togglePassword(id,el){
+  const input=document.getElementById(id);
+  input.type=input.type==="password"?"text":"password";
+}
+
 document.getElementById("loginForm").addEventListener("submit", function (e) {
+
   e.preventDefault();
+
+  const btn=document.getElementById("loginBtn");
+  btn.disabled=true;
 
   const email = document.getElementById("loginEmail").value.trim();
   const password = document.getElementById("loginPassword").value;
 
   if (!email || !password) {
     showError("Email and password are required");
+    btn.disabled=false;
     return;
   }
 
   if (password.length < 8) {
     showError("Invalid credentials");
+    btn.disabled=false;
     return;
   }
 
   login(email, password);
 });
+
 </script>
 
 </body>

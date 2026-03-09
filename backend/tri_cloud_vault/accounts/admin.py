@@ -1,9 +1,8 @@
-from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import User
+from tri_cloud_vault.admin_dashboard import admin_site
 
 
-@admin.register(User)
 class CustomUserAdmin(UserAdmin):
     model = User
 
@@ -27,3 +26,6 @@ class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
         ("Email Verification", {"fields": ("is_email_verified",)}),
     )
+
+
+admin_site.register(User, CustomUserAdmin)
