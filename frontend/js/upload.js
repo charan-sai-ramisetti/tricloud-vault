@@ -171,6 +171,11 @@ function uploadToCloudParallel(file, cloud, uploadUrl) {
 
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", uploadUrl, true);
+    if (uploadUrl.includes("amazonaws.com")) {
+  // Force a stable content type
+  xhr.setRequestHeader("Content-Type", "application/octet-stream");
+}
+    
 
     if (uploadUrl.includes("blob.core.windows.net")) {
       xhr.setRequestHeader("x-ms-blob-type", "BlockBlob");

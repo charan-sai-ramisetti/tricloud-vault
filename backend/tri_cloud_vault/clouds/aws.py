@@ -21,8 +21,7 @@ def generate_aws_upload_url(user_id, file_name,file_type):
             ClientMethod="put_object",
             Params={
                 "Bucket": AWS_BUCKET,
-                "Key": key,
-                "ContentType": file_type
+                "Key": key
             },
             ExpiresIn=3600,
         )
