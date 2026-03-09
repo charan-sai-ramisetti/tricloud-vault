@@ -7,7 +7,7 @@ resource "aws_s3_bucket_cors_configuration" "tricloud_cors" {
 
   cors_rule {
     allowed_headers = ["*"]
-    allowed_methods = ["GET", "PUT", "POST", "DELETE"]
+    allowed_methods = ["GET", "PUT", "POST", "DELETE","HEAD"]
     allowed_origins = [
       "http://localhost:5500",
       "http://127.0.0.1:5500",

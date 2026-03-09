@@ -123,7 +123,7 @@ class FolderSummaryView(APIView):
             )
 
         folders = {
-            "Documents": ["pdf", "doc", "docx", "txt"],
+            "Documents": ["pdf", "doc", "docx", "txt","xlsx"],
             "Images": ["jpg", "jpeg", "png", "gif"],
             "Videos": ["mp4", "mkv", "avi"],
         }
