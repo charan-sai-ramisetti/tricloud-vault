@@ -49,6 +49,26 @@ module "aws_rds" {
   db_user = "tricloud_vault"
   db_password = var.db_password
 }
+
+module "aws_autoscaling" {
+
+  source = "./modules/aws/autoscaling"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  ami_id        = var.ami_id
+  instance_type = var.ec2_instance_type
+
+  security_group_id = module.aws_sg.backend_sg
+
+  private_subnets = module.aws_vpc.private_subnet_ids
+
+  target_group_arn = module.aws_alb.target_group_arn
+
+  instance_profile = module.aws_ec2.iam_instance_profile
+}
+
 module "aws_s3" {
   source       = "./modules/aws/s3-storage"
   project_name = var.project_name
