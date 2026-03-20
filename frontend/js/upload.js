@@ -1,12 +1,20 @@
 let lastUploadMeta = null;
 let uploadResults = {};
 
+const CHUNK_SIZE = 100 * 1024 * 1024;
+const MAX_PARALLEL_UPLOADS = 3;
+const BREATHING_DELAY = 120;
+
+
 /* ===============================
-   FILE INPUT CHANGE HANDLER
-   =============================== */
+   FILE LABEL
+================================ */
 document.addEventListener("change", function (e) {
+
   if (e.target && e.target.id === "fileInput") {
+
     const label = document.getElementById("selected-file-text");
+
     if (!label) return;
 
     if (e.target.files.length > 0) {
@@ -14,14 +22,35 @@ document.addEventListener("change", function (e) {
     } else {
       label.innerText = "Select file";
     }
+
   }
+
 });
 
+
 /* ===============================
-   HARD RESET UPLOAD FORM
-   =============================== */
+   BUTTON CONTROL
+================================ */
+function setUploadButton(disabled, text) {
+
+  const btn = document.getElementById("uploadBtn");
+
+  if (!btn) return;
+
+  btn.disabled = disabled;
+
+  if (text) btn.innerText = text;
+
+}
+
+
+/* ===============================
+   RESET FORM
+================================ */
 function resetUploadForm() {
+
   const wrapper = document.getElementById("file-input-wrapper");
+
   if (!wrapper) return;
 
   wrapper.innerHTML = `
@@ -31,48 +60,86 @@ function resetUploadForm() {
     </label>
   `;
 
-  const checkboxes = document.querySelectorAll(
-    "#cloudSelect input[type='checkbox']"
-  );
-  checkboxes.forEach(cb => (cb.checked = false));
+  document
+    .querySelectorAll("#cloudSelect input[type='checkbox']")
+    .forEach(cb => (cb.checked = false));
+
 }
+
 
 /* ===============================
-   SAFE BUTTON HANDLER
-   =============================== */
-function setUploadButton(disabled, text) {
-  const btn = document.getElementById("uploadBtn");
-  if (!btn) return;
+   CREATE STATUS BOX
+================================ */
+function createStatusBox(file, cloud) {
 
-  btn.disabled = disabled;
-  if (text) btn.innerText = text;
+  const container = document.getElementById("upload-status-container");
+
+  let title = container.querySelector(".upload-title");
+
+  if (!title) {
+
+    title = document.createElement("div");
+    title.className = "upload-title";
+    title.innerHTML = `<strong>${file.name}</strong>`;
+    container.appendChild(title);
+
+  }
+
+  const statusBox = document.createElement("div");
+
+  statusBox.className = "upload-status";
+
+  statusBox.innerHTML = `
+    <strong>${cloud}</strong>
+    <div class="progress-bar">
+      <div class="progress"></div>
+    </div>
+    <div class="status-text">Uploading… 0%</div>
+  `;
+
+  container.appendChild(statusBox);
+
+  return statusBox;
+
 }
+
 
 /* ===============================
    START UPLOAD
-   =============================== */
+================================ */
 function startUpload() {
+
   setUploadButton(true, "Uploading...");
 
   const fileInput = document.getElementById("fileInput");
-  const cloudCheckboxes = document.querySelectorAll(
+
+  const selectedClouds = document.querySelectorAll(
     "#cloudSelect input[type='checkbox']:checked"
   );
 
   if (!fileInput || !fileInput.files.length) {
+
     alert("Please select a file");
+
     setUploadButton(false, "Upload");
+
     return;
+
   }
 
-  if (cloudCheckboxes.length === 0) {
+  if (selectedClouds.length === 0) {
+
     alert("Please select at least one cloud");
+
     setUploadButton(false, "Upload");
+
     return;
+
   }
 
   const file = fileInput.files[0];
-  const clouds = Array.from(cloudCheckboxes).map(cb => cb.value);
+
+  const clouds = Array.from(selectedClouds).map(cb => cb.value);
 
   fetch(`${API_BASE_URL}/files/presign/upload/`, {
     method: "POST",
@@ -86,163 +153,420 @@ function startUpload() {
   })
     .then(res => res.json())
     .then(data => {
-      if (!data.upload_urls || !data.paths) {
-        throw new Error("Invalid presign response");
+
+      if (data.upload_type === "single") {
+
+        startSingleUpload(file, clouds, data);
+
+      } else {
+
+        startMultipartUpload(file, clouds);
+
       }
 
-      uploadResults = {};
-      clouds.forEach(c => (uploadResults[c] = false));
-
-      lastUploadMeta = {
-        file_name: file.name,
-        file_size: file.size,
-        aws_path: null,
-        azure_path: null,
-        gcp_path: null
-      };
-
-      const uploadPromises = clouds.map(cloud =>
-        uploadToCloudParallel(file, cloud, data.upload_urls[cloud])
-          .then(() => {
-            uploadResults[cloud] = true;
-
-            if (cloud === "AWS") lastUploadMeta.aws_path = data.paths.aws_path;
-            if (cloud === "AZURE") lastUploadMeta.azure_path = data.paths.azure_path;
-            if (cloud === "GCP") lastUploadMeta.gcp_path = data.paths.gcp_path;
-          })
-          .catch(() => {
-            uploadResults[cloud] = false;
-          })
-      );
-
-      Promise.allSettled(uploadPromises).then(() => {
-        const successClouds = Object.keys(uploadResults).filter(
-          c => uploadResults[c]
-        );
-
-        if (successClouds.length === 0) {
-          alert("Upload failed on all selected clouds");
-          setUploadButton(false, "Upload");
-          return;
-        }
-
-        confirmUpload(successClouds);
-      });
     })
     .catch(err => {
+
       console.error(err);
-      alert("Failed to start upload");
+
+      alert("Upload failed");
+
       setUploadButton(false, "Upload");
+
     });
+
 }
 
+
 /* ===============================
-   PARALLEL UPLOAD HANDLER
-   =============================== */
-function uploadToCloudParallel(file, cloud, uploadUrl) {
-  return new Promise((resolve, reject) => {
-    const container = document.getElementById("upload-status-container");
-    if (!container) {
-      reject();
+   SINGLE UPLOAD
+================================ */
+function startSingleUpload(file, clouds, data) {
+
+  uploadResults = {};
+  clouds.forEach(c => uploadResults[c] = false);
+
+  lastUploadMeta = {
+    file_name: file.name,
+    file_size: file.size,
+    aws_path: null,
+    azure_path: null,
+    gcp_path: null
+  };
+
+  const uploads = clouds.map(cloud => {
+
+    const box = createStatusBox(file, cloud);
+
+    return uploadSingleFile(file, cloud, data.upload_urls[cloud], box)
+      .then(() => {
+
+        uploadResults[cloud] = true;
+
+        if (cloud === "AWS") lastUploadMeta.aws_path = data.paths.aws_path;
+        if (cloud === "AZURE") lastUploadMeta.azure_path = data.paths.azure_path;
+        if (cloud === "GCP") lastUploadMeta.gcp_path = data.paths.gcp_path;
+
+      });
+
+  });
+
+  Promise.allSettled(uploads).then(() => {
+
+    const success = Object.keys(uploadResults).filter(c => uploadResults[c]);
+
+    if (success.length === 0) {
+
+      alert("Upload failed");
+
+      setUploadButton(false, "Upload");
+
       return;
+
     }
 
-    let title = container.querySelector(".upload-title");
-    if (!title) {
-      title = document.createElement("div");
-      title.className = "upload-title";
-      title.innerHTML = `<strong>${file.name}</strong>`;
-      container.appendChild(title);
-    }
+    confirmUpload(success);
 
-    const statusBox = document.createElement("div");
-    statusBox.className = "upload-status";
-    statusBox.innerHTML = `
-      <strong>${cloud}</strong>
-      <div class="progress-bar">
-        <div class="progress"></div>
-      </div>
-      <div class="status-text">Uploading… 0%</div>
-    `;
-    container.appendChild(statusBox);
+  });
+
+}
+
+
+/* ===============================
+   SINGLE FILE UPLOAD
+================================ */
+function uploadSingleFile(file, cloud, uploadUrl, statusBox) {
+
+  return new Promise((resolve, reject) => {
 
     const progressEl = statusBox.querySelector(".progress");
     const statusText = statusBox.querySelector(".status-text");
 
     const xhr = new XMLHttpRequest();
-    xhr.open("PUT", uploadUrl, true);
-    if (uploadUrl.includes("amazonaws.com")) {
-  // Force a stable content type
-  xhr.setRequestHeader("Content-Type", "application/octet-stream");
-}
-    
 
-    if (uploadUrl.includes("blob.core.windows.net")) {
-      xhr.setRequestHeader("x-ms-blob-type", "BlockBlob");
-    }
-    if (uploadUrl.includes("storage.googleapis.com")) {
-      xhr.setRequestHeader("Content-Type", "application/octet-stream");
-    }
+    xhr.open("PUT", uploadUrl, true);
 
     xhr.upload.onprogress = e => {
+
       if (e.lengthComputable) {
+
         const percent = Math.round((e.loaded / e.total) * 100);
+
         progressEl.style.width = percent + "%";
+
         statusText.innerText = `Uploading… ${percent}%`;
+
       }
+
     };
 
     xhr.onload = () => {
+
       if (xhr.status === 200 || xhr.status === 201) {
+
         progressEl.style.width = "100%";
+
         statusText.innerText = "Uploaded";
 
-        setTimeout(() => {
-          statusBox.remove();
-          if (container.querySelectorAll(".upload-status").length === 0 && title) {
-            title.remove();
-          }
-        }, 500);
-
         resolve();
+
       } else {
+
         statusText.innerText = "Failed";
+
         reject();
+
       }
+
     };
 
     xhr.onerror = () => {
+
       statusText.innerText = "Failed";
+
       reject();
+
     };
 
     xhr.send(file);
+
   });
+
+}
+
+
+/* ===============================
+   MULTIPART UPLOAD
+================================ */
+async function startMultipartUpload(file, clouds) {
+
+  lastUploadMeta = {
+    file_name: file.name,
+    file_size: file.size,
+    aws_path: null,
+    azure_path: null,
+    gcp_path: null
+  };
+
+  const uploads = clouds.map(cloud => multipartForCloud(file, cloud));
+
+  const results = await Promise.allSettled(uploads);
+
+  const success = [];
+
+  results.forEach((r, i) => {
+
+    if (r.status === "fulfilled") success.push(clouds[i]);
+
+  });
+
+  if (success.length === 0) {
+
+    alert("Upload failed");
+
+    setUploadButton(false, "Upload");
+
+    return;
+
+  }
+
+  confirmUpload(success);
+
+}
+
+
+/* ===============================
+   MULTIPART PER CLOUD
+================================ */
+async function multipartForCloud(file, cloud) {
+
+  const statusBox = createStatusBox(file, cloud);
+
+  const progressEl = statusBox.querySelector(".progress");
+  const statusText = statusBox.querySelector(".status-text");
+
+  // START MULTIPART
+  const start = await fetch(`${API_BASE_URL}/files/multipart/start/`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      file_name: file.name,
+      file_type: file.type,
+      cloud: cloud
+    })
+  });
+
+  const startData = await start.json();
+
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+  const parts = [];
+
+  let uploaded = 0;
+
+  // UPLOAD CHUNKS
+  for (let i = 0; i < totalChunks; i += MAX_PARALLEL_UPLOADS) {
+
+    const batch = [];
+
+    for (let j = i; j < i + MAX_PARALLEL_UPLOADS && j < totalChunks; j++) {
+
+      batch.push(uploadChunk(file, cloud, startData, j));
+
+    }
+
+    const results = await Promise.all(batch);
+
+    parts.push(...results);
+
+    uploaded += results.length;
+
+    const percent = Math.round((uploaded / totalChunks) * 100);
+
+    progressEl.style.width = percent + "%";
+    statusText.innerText = `Uploading… ${percent}%`;
+
+    await sleep(BREATHING_DELAY);
+  }
+
+  // COMPLETE MULTIPART
+
+  if (cloud === "AWS") {
+
+    await fetch(`${API_BASE_URL}/files/multipart/complete/`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        cloud: cloud,
+        key: startData.key,
+        upload_id: startData.upload_id,
+        parts: parts
+      })
+    });
+
+    lastUploadMeta.aws_path = startData.key;
+  }
+
+  if (cloud === "AZURE") {
+
+    await fetch(`${API_BASE_URL}/files/multipart/complete/`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        cloud: cloud,
+        blob_name: startData.blob_name,
+        blocks: parts.map(p => p.block_id)
+      })
+    });
+
+    lastUploadMeta.azure_path = startData.blob_name;
+  }
+
+  if (cloud === "GCP") {
+
+    // GCP resumable uploads complete automatically
+    lastUploadMeta.gcp_path = startData.blob;
+  }
+
+  progressEl.style.width = "100%";
+  statusText.innerText = "Uploaded";
+
+}
+
+
+/* ===============================
+   UPLOAD CHUNK
+================================ */
+
+function uploadChunk(file, cloud, startData, index) {
+
+  return new Promise(async (resolve, reject) => {
+
+    try {
+
+      const start = index * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+
+      let payload;
+      let blockId = null;
+
+      // ===============================
+      // AWS Multipart Upload
+      // ===============================
+      if (cloud === "AWS") {
+
+        payload = {
+          cloud: cloud,
+          key: startData.key,
+          upload_id: startData.upload_id,
+          part_number: index + 1
+        };
+
+      }
+
+      // ===============================
+      // Azure Block Upload
+      // ===============================
+      if (cloud === "AZURE") {
+
+        blockId = btoa(String(index + 1).padStart(6, "0"));
+
+        payload = {
+          cloud: cloud,
+          blob_name: startData.blob_name,
+          block_id: blockId
+        };
+
+      }
+
+      // ===============================
+      // Request presigned upload URL
+      // ===============================
+      const presign = await fetch(`${API_BASE_URL}/files/multipart/presign-part/`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(payload)
+      });
+
+      const presignData = await presign.json();
+
+      if (!presignData.url) {
+        reject("Failed to generate upload URL");
+        return;
+      }
+
+      const xhr = new XMLHttpRequest();
+
+      xhr.open("PUT", presignData.url, true);
+
+      xhr.onload = () => {
+
+        if (xhr.status === 200 || xhr.status === 201) {
+
+          const etag = xhr.getResponseHeader("ETag");
+
+          // AWS result
+          if (cloud === "AWS") {
+            resolve({
+              ETag: etag,
+              PartNumber: index + 1
+            });
+          }
+
+          // Azure result
+          if (cloud === "AZURE") {
+            resolve({
+              block_id: blockId
+            });
+          }
+
+        } else {
+          reject(`Upload failed with status ${xhr.status}`);
+        }
+
+      };
+
+      xhr.onerror = () => reject("Upload failed");
+
+      xhr.send(chunk);
+
+    } catch (err) {
+
+      reject(err);
+
+    }
+
+  });
+
 }
 
 /* ===============================
    CONFIRM UPLOAD
-   =============================== */
+================================ */
 function confirmUpload(successClouds) {
+
   const payload = {
     file_name: lastUploadMeta.file_name,
     file_size: lastUploadMeta.file_size
   };
 
-  if (successClouds.includes("AWS")) payload.aws_path = lastUploadMeta.aws_path;
-  if (successClouds.includes("AZURE")) payload.azure_path = lastUploadMeta.azure_path;
-  if (successClouds.includes("GCP")) payload.gcp_path = lastUploadMeta.gcp_path;
+  if (successClouds.includes("AWS"))
+    payload.aws_path = lastUploadMeta.aws_path;
+
+  if (successClouds.includes("AZURE"))
+    payload.azure_path = lastUploadMeta.azure_path;
+
+  if (successClouds.includes("GCP"))
+    payload.gcp_path = lastUploadMeta.gcp_path;
 
   fetch(`${API_BASE_URL}/files/confirm-upload/`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify(payload)
   })
-    .then(res => {
-      if (!res.ok) throw new Error("Confirm upload failed");
-      return res.json();
-    })
     .then(() => {
+
       loadFiles();
       loadRecentFiles();
       loadFolders();
@@ -250,14 +574,27 @@ function confirmUpload(successClouds) {
 
       resetUploadForm();
 
-      const container = document.getElementById("upload-status-container");
-      if (container) container.innerHTML = "";
+      document.getElementById("upload-status-container").innerHTML = "";
 
       setUploadButton(false, "Upload");
+
     })
-    .catch(err => {
-      console.error(err);
+    .catch(() => {
+
       alert("Upload verification failed");
+
       setUploadButton(false, "Upload");
+
     });
+
+}
+
+
+/* ===============================
+   SLEEP
+================================ */
+function sleep(ms) {
+
+  return new Promise(resolve => setTimeout(resolve, ms));
+
 }
