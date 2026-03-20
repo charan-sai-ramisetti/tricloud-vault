@@ -15,38 +15,27 @@ module "aws_sg" {
   vpc_id       = module.aws_vpc.vpc_id
 }
 
-module "aws_ec2" {
-  source            = "./modules/aws/ec2-backend"
+module "aws_alb" {
+  source            = "./modules/aws/alb"
   project_name      = var.project_name
   environment       = var.environment
-  subnet_id         = module.aws_vpc.private_subnet_ids[0]
-  security_group_id = module.aws_sg.backend_sg
-  ami_id            = var.ami_id
-  instance_type     = var.ec2_instance_type
+  subnet_ids        = module.aws_vpc.public_subnet_ids
+  security_group_id = module.aws_sg.alb_sg
+  vpc_id            = module.aws_vpc.vpc_id
 }
 
-module "aws_alb" {
-  source             = "./modules/aws/alb"
-  project_name       = var.project_name
-  environment        = var.environment
-  subnet_ids         = module.aws_vpc.public_subnet_ids
-  security_group_id  = module.aws_sg.alb_sg
-  target_instance_id = module.aws_ec2.instance_id
-  vpc_id             = module.aws_vpc.vpc_id
-}
 module "aws_rds" {
 
   source = "./modules/aws/rds"
 
   project_name = var.project_name
   environment  = var.environment
-  
+
   private_subnets = module.aws_vpc.private_subnet_ids
+  db_sg           = module.aws_sg.rds_sg
 
-  db_sg = module.aws_sg.rds_sg
-
-  db_name = "tricloud_vault"
-  db_user = "tricloud_vault"
+  db_name     = "tricloud_vault"
+  db_user     = "tricloud_vault"
   db_password = var.db_password
 }
 
@@ -65,8 +54,6 @@ module "aws_autoscaling" {
   private_subnets = module.aws_vpc.private_subnet_ids
 
   target_group_arn = module.aws_alb.target_group_arn
-
-  instance_profile = module.aws_ec2.iam_instance_profile
 }
 
 module "aws_s3" {
