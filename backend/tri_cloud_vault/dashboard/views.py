@@ -1,4 +1,4 @@
-from django.db.models import Sum
+from django.db.models import Sum, Case, When, BigIntegerField
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -27,20 +27,31 @@ class StorageSummaryView(APIView):
 
             limit_mb = subscription.cloud_limit_mb
 
-            aws_used = (
-                File.objects.filter(user=user, aws_path__isnull=False)
-                .aggregate(total=Sum("file_size"))["total"] or 0
+            # Single query with conditional aggregation — replaces 3 separate aggregate queries
+            totals = File.objects.filter(user=user).aggregate(
+                aws_total=Sum(
+                    Case(
+                        When(aws_path__isnull=False, then="file_size"),
+                        output_field=BigIntegerField(),
+                    )
+                ),
+                azure_total=Sum(
+                    Case(
+                        When(azure_path__isnull=False, then="file_size"),
+                        output_field=BigIntegerField(),
+                    )
+                ),
+                gcp_total=Sum(
+                    Case(
+                        When(gcp_path__isnull=False, then="file_size"),
+                        output_field=BigIntegerField(),
+                    )
+                ),
             )
 
-            azure_used = (
-                File.objects.filter(user=user, azure_path__isnull=False)
-                .aggregate(total=Sum("file_size"))["total"] or 0
-            )
-
-            gcp_used = (
-                File.objects.filter(user=user, gcp_path__isnull=False)
-                .aggregate(total=Sum("file_size"))["total"] or 0
-            )
+            aws_used   = totals["aws_total"]   or 0
+            azure_used = totals["azure_total"] or 0
+            gcp_used   = totals["gcp_total"]   or 0
 
         except Exception as e:
             return Response(
@@ -74,6 +85,8 @@ class RecentFilesView(APIView):
             files = (
                 File.objects
                 .filter(user=user)
+                .only("id", "file_name", "file_size", "created_at",
+                      "aws_path", "azure_path", "gcp_path")
                 .order_by("-created_at")[:5]
             )
         except Exception:
@@ -115,7 +128,13 @@ class FolderSummaryView(APIView):
         user = request.user
 
         try:
-            files = File.objects.filter(user=user)
+            # .only() avoids fetching cloud path columns (512 chars each × 3) for every row —
+            # this view only needs file_name and file_size for its grouping logic
+            files = (
+                File.objects
+                .filter(user=user)
+                .only("file_name", "file_size")
+            )
         except Exception:
             return Response(
                 {"error": "Failed to fetch files"},
@@ -123,7 +142,7 @@ class FolderSummaryView(APIView):
             )
 
         folders = {
-            "Documents": ["pdf", "doc", "docx", "txt","xlsx"],
+            "Documents": ["pdf", "doc", "docx", "txt", "xlsx"],
             "Images": ["jpg", "jpeg", "png", "gif"],
             "Videos": ["mp4", "mkv", "avi"],
         }
@@ -137,7 +156,7 @@ class FolderSummaryView(APIView):
 
         for f in files:
             try:
-                ext = f.file_name.split(".")[-1].lower()
+                ext = f.file_name.rsplit(".", 1)[-1].lower() if "." in f.file_name else ""
                 matched = False
 
                 for folder, exts in folders.items():

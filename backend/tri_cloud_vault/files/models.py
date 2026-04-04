@@ -23,5 +23,15 @@ class File(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        indexes = [
+            # FileListView and RecentFilesView: filter by user, sort by -created_at
+            models.Index(fields=["user", "-created_at"], name="file_user_created_idx"),
+            # StorageSummaryView and PresignUploadView: per-cloud storage aggregates
+            models.Index(fields=["user", "aws_path"],   name="file_user_aws_idx"),
+            models.Index(fields=["user", "azure_path"], name="file_user_azure_idx"),
+            models.Index(fields=["user", "gcp_path"],   name="file_user_gcp_idx"),
+        ]
+
     def __str__(self):
         return f"{self.file_name} ({self.user})"

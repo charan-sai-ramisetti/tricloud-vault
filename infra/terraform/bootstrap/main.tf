@@ -2,14 +2,20 @@
 # S3 Bucket for Terraform State
 # ----------------------------
 
+resource "random_id" "bucket_id" {
+  byte_length = 4
+}
+
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "tricloud-vault-terraform-state"
+  bucket = "tricloud-vault-${random_id.bucket_id.hex}"
+  force_destroy = true
 
   tags = {
     Name        = "Terraform Remote State"
     Environment = "Global"
   }
 }
+
 
 # Enable Versioning
 resource "aws_s3_bucket_versioning" "versioning" {

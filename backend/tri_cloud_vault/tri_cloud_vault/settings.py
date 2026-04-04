@@ -21,7 +21,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-dev-key")
 
-DEBUG = True  # Set False in production
+# Read from environment — set DEBUG=True in your .env for local dev,
+# leave it unset (or set DEBUG=False) in production
+DEBUG = os.getenv("DEBUG", "False") == "True"
 
 # --------------------------------------------------
 # HOSTS
@@ -32,6 +34,7 @@ ALLOWED_HOSTS = [
     ".charansai.me",        # allow all subdomains
     "localhost",
     "127.0.0.1",
+    ".elb.amazonaws.com"
 ]
 
 # --------------------------------------------------
@@ -101,11 +104,12 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "tri_cloud_vault.middleware.UserEmailHeaderMiddleware",
+    # UserEmailHeaderMiddleware removed — it leaked user PII (email address) in
+    # every API response header with no legitimate purpose
 ]
 
 # --------------------------------------------------
-# CORS 
+# CORS
 # --------------------------------------------------
 
 CORS_ALLOW_ALL_ORIGINS = False
@@ -158,6 +162,9 @@ DATABASES = {
         "PASSWORD": os.getenv("DB_PASSWORD"),
         "HOST": os.getenv("DB_HOST"),
         "PORT": os.getenv("DB_PORT"),
+        # Reuse TCP connections for 60 seconds instead of opening a new
+        # connection to Postgres on every single HTTP request
+        "CONN_MAX_AGE": 60,
     }
 }
 
@@ -194,6 +201,7 @@ STATICFILES_DIRS = [
 ]
 
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+
 # --------------------------------------------------
 # DRF (NO BROWSABLE API)
 # --------------------------------------------------
@@ -242,4 +250,3 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-

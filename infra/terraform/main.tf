@@ -22,6 +22,7 @@ module "aws_alb" {
   subnet_ids        = module.aws_vpc.public_subnet_ids
   security_group_id = module.aws_sg.alb_sg
   vpc_id            = module.aws_vpc.vpc_id
+  acm_certificate_arn =var.acm-arn
 }
 
 module "aws_rds" {
@@ -40,20 +41,14 @@ module "aws_rds" {
 }
 
 module "aws_autoscaling" {
-
-  source = "./modules/aws/autoscaling"
-
-  project_name = var.project_name
-  environment  = var.environment
-
-  ami_id        = var.ami_id
-  instance_type = var.ec2_instance_type
-
-  security_group_id = module.aws_sg.backend_sg
-
-  private_subnets = module.aws_vpc.private_subnet_ids
-
-  target_group_arn = module.aws_alb.target_group_arn
+  source               = "./modules/aws/autoscaling"
+  project_name         = var.project_name
+  environment          = var.environment
+  ami_id               = var.ami_id
+  instance_type        = var.ec2_instance_type
+  security_group_id    = module.aws_sg.backend_sg
+  private_subnets      = module.aws_vpc.private_subnet_ids
+  app_target_group_arn = module.aws_alb.app_target_group_arn
 }
 
 module "aws_s3" {

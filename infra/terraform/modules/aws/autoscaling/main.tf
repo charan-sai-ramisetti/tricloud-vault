@@ -1,15 +1,13 @@
 resource "aws_launch_template" "backend" {
-
-  name_prefix = "${var.project_name}-${var.environment}-lt"
-
+  name_prefix   = "${var.project_name}-${var.environment}-lt"
   image_id      = var.ami_id
   instance_type = var.instance_type
 
   vpc_security_group_ids = [var.security_group_id]
 
   iam_instance_profile {
-  name = aws_iam_instance_profile.ssm_profile.name
-}
+    name = aws_iam_instance_profile.ssm_profile.name
+  }
 
   metadata_options {
     http_tokens = "required"
@@ -21,7 +19,6 @@ resource "aws_launch_template" "backend" {
     sudo snap install amazon-ssm-agent --classic
     sudo systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
     sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
-
   EOF
   )
 
@@ -37,13 +34,10 @@ resource "aws_launch_template" "backend" {
 }
 
 resource "aws_autoscaling_group" "backend" {
-
-  name = "${var.project_name}-${var.environment}-asg"
-
-  min_size         = 1
-  max_size         = 3
-  desired_capacity = 1
-
+  name               = "${var.project_name}-${var.environment}-asg"
+  min_size           = 1
+  max_size           = 3
+  desired_capacity   = 1
   vpc_zone_identifier = var.private_subnets
 
   launch_template {
@@ -51,9 +45,10 @@ resource "aws_autoscaling_group" "backend" {
     version = "$Latest"
   }
 
-  target_group_arns = [var.target_group_arn]
+  target_group_arns = [
+    var.app_target_group_arn
+  ]
 
-  # Prevent health check failures during testing
   health_check_type         = "EC2"
   health_check_grace_period = 3600
 
@@ -77,13 +72,11 @@ resource "aws_autoscaling_group" "backend" {
 }
 
 resource "aws_autoscaling_policy" "cpu_target_tracking" {
-
   name                   = "${var.project_name}-${var.environment}-cpu-scaling"
   autoscaling_group_name = aws_autoscaling_group.backend.name
   policy_type            = "TargetTrackingScaling"
 
   target_tracking_configuration {
-
     predefined_metric_specification {
       predefined_metric_type = "ASGAverageCPUUtilization"
     }

@@ -30,3 +30,7 @@ output "alb_dns_name" {
 output "rds_endpoint" {
   value = module.aws_rds.rds_endpoint
 }
+
+output "instance_id" {
+  value = module.aws_autoscaling.iam_instance_profile
+}

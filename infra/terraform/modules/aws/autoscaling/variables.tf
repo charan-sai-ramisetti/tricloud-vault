@@ -7,5 +7,6 @@ variable "instance_type" {}
 variable "security_group_id" {}
 variable "private_subnets" {}
 
-variable "target_group_arn" {}
-
+variable "app_target_group_arn" {
+  description = "ARN of the application target group (Caddy :8080)"
+}

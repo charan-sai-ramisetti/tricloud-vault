@@ -21,8 +21,8 @@ User = get_user_model()
 # BASE URL CONFIG (CHANGE HERE ONLY)
 # ==================================================
 
-FRONTEND_BASE_URL = "http://localhost:5500"
-BACKEND_BASE_URL = "http://127.0.0.1:8001"
+FRONTEND_BASE_URL = "https://tricloudvault.charansai.me"
+BACKEND_BASE_URL =  "https://tricloudvault.charansai.me"
 
 # ==================================================
 # REGISTER
@@ -74,6 +74,8 @@ class RegisterView(APIView):
             f"token={user.email_verification_token}"
         )
 
+        # fail_silently=True — SMTP errors must not crash registration or block
+        # the response thread. If the email fails, the user can use resend-verification.
         send_mail(
             subject="Verify your TriCloud Vault account",
             message=(
@@ -83,7 +85,7 @@ class RegisterView(APIView):
             ),
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
-            fail_silently=False,
+            fail_silently=True,
         )
 
         return Response(
@@ -135,7 +137,6 @@ class LoginView(APIView):
     def post(self, request):
         email = request.data.get("email")
         password = request.data.get("password")
-        #print(request.data)
 
         if not email or not password:
             return Response(
@@ -210,7 +211,7 @@ class ResendVerificationEmailView(APIView):
             message=f"Verify your email:\n\n{verification_link}",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
-            fail_silently=False,
+            fail_silently=True,
         )
 
         return Response(
@@ -259,7 +260,7 @@ class ForgotPasswordView(APIView):
             message=f"Reset your password:\n\n{reset_link}",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
-            fail_silently=False,
+            fail_silently=True,
         )
 
         return Response(

@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from django.db.models import Sum
+from django.db.models import Sum, Case, When, BigIntegerField
 import logging
 import uuid
 
@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_CLOUDS = {"AWS", "AZURE", "GCP"}
 
-CHUNK_SIZE = 100 * 1024 * 1024  # 100MB
+CHUNK_SIZE = 10 * 1024 * 1024  # 10 MB — must match frontend upload.js CHUNK_SIZE
 
 
 # ==========================================
@@ -125,23 +125,37 @@ class PresignUploadView(APIView):
 
         cloud_limit_bytes = subscription.cloud_limit_mb * 1024 * 1024
 
+        # Single conditional aggregate query for all three clouds — replaces the
+        # previous loop that ran 1 separate DB query per selected cloud (up to 3 queries)
+        usage_totals = File.objects.filter(user=request.user).aggregate(
+            aws_total=Sum(
+                Case(
+                    When(aws_path__isnull=False, then="file_size"),
+                    output_field=BigIntegerField(),
+                )
+            ),
+            azure_total=Sum(
+                Case(
+                    When(azure_path__isnull=False, then="file_size"),
+                    output_field=BigIntegerField(),
+                )
+            ),
+            gcp_total=Sum(
+                Case(
+                    When(gcp_path__isnull=False, then="file_size"),
+                    output_field=BigIntegerField(),
+                )
+            ),
+        )
+
+        cloud_usage = {
+            "AWS":   usage_totals["aws_total"]   or 0,
+            "AZURE": usage_totals["azure_total"] or 0,
+            "GCP":   usage_totals["gcp_total"]   or 0,
+        }
+
         for cloud in clouds:
-
-            if cloud == "AWS":
-                used = File.objects.filter(
-                    user=request.user, aws_path__isnull=False
-                ).aggregate(total=Sum("file_size"))["total"] or 0
-
-            elif cloud == "AZURE":
-                used = File.objects.filter(
-                    user=request.user, azure_path__isnull=False
-                ).aggregate(total=Sum("file_size"))["total"] or 0
-
-            else:
-                used = File.objects.filter(
-                    user=request.user, gcp_path__isnull=False
-                ).aggregate(total=Sum("file_size"))["total"] or 0
-
+            used = cloud_usage[cloud]
             if used + file_size > cloud_limit_bytes:
                 return Response(
                     {

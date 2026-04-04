@@ -1,9 +1,9 @@
 let lastUploadMeta = null;
 let uploadResults = {};
 
-const CHUNK_SIZE = 100 * 1024 * 1024;
+const CHUNK_SIZE = 10 * 1024 * 1024;   // 10 MB — matches AWS SDK default, gives real progress granularity
 const MAX_PARALLEL_UPLOADS = 3;
-const BREATHING_DELAY = 120;
+const BREATHING_DELAY = 50;             // 50 ms — enough to yield the event loop without killing throughput
 
 
 /* ===============================
@@ -246,6 +246,11 @@ function uploadSingleFile(file, cloud, uploadUrl, statusBox) {
 
     xhr.open("PUT", uploadUrl, true);
 
+    // x-ms-blob-type is required ONLY for single-blob PUTs (not block part uploads)
+    if (cloud === "AZURE") {
+      xhr.setRequestHeader("x-ms-blob-type", "BlockBlob");
+    }
+
     xhr.upload.onprogress = e => {
 
       if (e.lengthComputable) {
@@ -360,18 +365,34 @@ async function multipartForCloud(file, cloud) {
 
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
+  // Byte-accurate progress: track how many bytes each chunk has uploaded so far
+  const bytesUploadedPerChunk = new Array(totalChunks).fill(0);
+  const chunkSizes = [];
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE;
+    const end = Math.min(start + CHUNK_SIZE, file.size);
+    chunkSizes.push(end - start);
+  }
+
+  function onChunkProgress(chunkIndex, bytesLoaded) {
+    bytesUploadedPerChunk[chunkIndex] = bytesLoaded;
+    const totalUploaded = bytesUploadedPerChunk.reduce((a, b) => a + b, 0);
+    // Cap at 99% until the commit step succeeds
+    const percent = Math.min(99, Math.round((totalUploaded / file.size) * 100));
+    progressEl.style.width = percent + "%";
+    statusText.innerText = `Uploading… ${percent}%`;
+  }
+
   const parts = [];
 
-  let uploaded = 0;
-
-  // UPLOAD CHUNKS
+  // UPLOAD CHUNKS in batches of MAX_PARALLEL_UPLOADS
   for (let i = 0; i < totalChunks; i += MAX_PARALLEL_UPLOADS) {
 
     const batch = [];
 
     for (let j = i; j < i + MAX_PARALLEL_UPLOADS && j < totalChunks; j++) {
 
-      batch.push(uploadChunk(file, cloud, startData, j));
+      batch.push(uploadChunk(file, cloud, startData, j, onChunkProgress));
 
     }
 
@@ -379,21 +400,15 @@ async function multipartForCloud(file, cloud) {
 
     parts.push(...results);
 
-    uploaded += results.length;
-
-    const percent = Math.round((uploaded / totalChunks) * 100);
-
-    progressEl.style.width = percent + "%";
-    statusText.innerText = `Uploading… ${percent}%`;
-
     await sleep(BREATHING_DELAY);
+
   }
 
   // COMPLETE MULTIPART
 
   if (cloud === "AWS") {
 
-    await fetch(`${API_BASE_URL}/files/multipart/complete/`, {
+    const completeRes = await fetch(`${API_BASE_URL}/files/multipart/complete/`, {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({
@@ -404,12 +419,17 @@ async function multipartForCloud(file, cloud) {
       })
     });
 
+    if (!completeRes.ok) {
+      throw new Error("AWS multipart complete failed");
+    }
+
     lastUploadMeta.aws_path = startData.key;
+
   }
 
   if (cloud === "AZURE") {
 
-    await fetch(`${API_BASE_URL}/files/multipart/complete/`, {
+    const completeRes = await fetch(`${API_BASE_URL}/files/multipart/complete/`, {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({
@@ -419,13 +439,19 @@ async function multipartForCloud(file, cloud) {
       })
     });
 
+    if (!completeRes.ok) {
+      throw new Error("Azure block commit failed");
+    }
+
     lastUploadMeta.azure_path = startData.blob_name;
+
   }
 
   if (cloud === "GCP") {
 
     // GCP resumable uploads complete automatically
     lastUploadMeta.gcp_path = startData.blob;
+
   }
 
   progressEl.style.width = "100%";
@@ -437,8 +463,7 @@ async function multipartForCloud(file, cloud) {
 /* ===============================
    UPLOAD CHUNK
 ================================ */
-
-function uploadChunk(file, cloud, startData, index) {
+function uploadChunk(file, cloud, startData, index, onProgress) {
 
   return new Promise(async (resolve, reject) => {
 
@@ -500,9 +525,26 @@ function uploadChunk(file, cloud, startData, index) {
 
       xhr.open("PUT", presignData.url, true);
 
+      // NOTE: Do NOT set x-ms-blob-type on block part uploads (?comp=block).
+      // That header is only valid for single-blob PUTs. Setting it on block
+      // part requests causes Azure to reject the upload.
+
+      // Wire up per-chunk progress for byte-accurate overall progress tracking
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(index, e.loaded);
+        }
+      };
+
       xhr.onload = () => {
 
         if (xhr.status === 200 || xhr.status === 201) {
+
+          // Mark this chunk as fully uploaded
+          if (onProgress) {
+            const chunkSize = end - start;
+            onProgress(index, chunkSize);
+          }
 
           const etag = xhr.getResponseHeader("ETag");
 

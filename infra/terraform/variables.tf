@@ -19,3 +19,4 @@ variable "azure_location" {}
 
 variable "gcp_project_id" {}
 variable "gcp_region" {}
+variable "acm-arn" {}

@@ -1,9 +1,11 @@
 from django.utils.deprecation import MiddlewareMixin
 
-class UserEmailHeaderMiddleware(MiddlewareMixin):
-    def process_response(self, request, response):
-        if hasattr(request, "user") and request.user.is_authenticated:
-            response["X-User-Email"] = request.user.email
-        else:
-            response["X-User-Email"] = "anonymous"
-        return response
+# UserEmailHeaderMiddleware has been removed.
+#
+# The previous implementation attached request.user.email to every API response
+# as an X-User-Email header. This exposed PII (email addresses) in response
+# headers with no legitimate purpose — the frontend already has the email from
+# the JWT payload / login response and does not need it echoed back on every call.
+#
+# This file is kept as a placeholder so the import in settings.py does not need
+# to be changed if other middleware is added here in the future.

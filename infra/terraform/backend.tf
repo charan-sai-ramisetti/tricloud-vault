@@ -2,7 +2,7 @@ terraform {
   required_version = ">= 1.5.0"
 
   backend "s3" {
-    bucket         = "tricloud-vault-terraform-state"
+    bucket         = "tricloud-vault-ec6b8df4"
     key            = "dev/terraform.tfstate"
     region         = "ap-south-1"
     dynamodb_table = "tricloud-vault-lock-table"

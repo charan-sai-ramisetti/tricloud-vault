@@ -18,6 +18,7 @@ from .admin_dashboard import admin_site
 from django.urls import path, include
 
 urlpatterns = [
+    path("health/", HealthCheckView.as_view(), name="health-check"),
     path("admin/", admin_site.urls),
     path("api/auth/", include("accounts.urls")),
     path("api/files/", include("files.urls")),
