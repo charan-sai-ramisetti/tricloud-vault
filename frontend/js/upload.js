@@ -251,6 +251,10 @@ function uploadSingleFile(file, cloud, uploadUrl, statusBox) {
 
     xhr.open("PUT", uploadUrl, true);
 
+    if (cloud === "GCP") {
+  xhr.setRequestHeader("Content-Type", "application/octet-stream");
+}
+
     if (cloud === "AZURE") {
       xhr.setRequestHeader("x-ms-blob-type", "BlockBlob");
     }
