@@ -1,9 +1,14 @@
 let lastUploadMeta = null;
 let uploadResults = {};
 
-const CHUNK_SIZE = 10 * 1024 * 1024;   // 10 MB — matches AWS SDK default, gives real progress granularity
+const CHUNK_SIZE = 10 * 1024 * 1024;
 const MAX_PARALLEL_UPLOADS = 3;
-const BREATHING_DELAY = 50;             // 50 ms — enough to yield the event loop without killing throughput
+const BREATHING_DELAY = 50;
+
+// A single ERR_CONNECTION_RESET must NOT kill the whole upload.
+// Each chunk gets 3 attempts with exponential backoff before giving up.
+const MAX_CHUNK_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 2000; // 2s → 4s → 8s
 
 
 /* ===============================
@@ -246,7 +251,6 @@ function uploadSingleFile(file, cloud, uploadUrl, statusBox) {
 
     xhr.open("PUT", uploadUrl, true);
 
-    // x-ms-blob-type is required ONLY for single-blob PUTs (not block part uploads)
     if (cloud === "AZURE") {
       xhr.setRequestHeader("x-ms-blob-type", "BlockBlob");
     }
@@ -327,7 +331,7 @@ async function startMultipartUpload(file, clouds) {
 
   if (success.length === 0) {
 
-    alert("Upload failed");
+    alert("Upload failed. Check your connection and try again.");
 
     setUploadButton(false, "Upload");
 
@@ -350,7 +354,6 @@ async function multipartForCloud(file, cloud) {
   const progressEl = statusBox.querySelector(".progress");
   const statusText = statusBox.querySelector(".status-text");
 
-  // START MULTIPART
   const start = await fetch(`${API_BASE_URL}/files/multipart/start/`, {
     method: "POST",
     headers: authHeaders(),
@@ -365,19 +368,11 @@ async function multipartForCloud(file, cloud) {
 
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
-  // Byte-accurate progress: track how many bytes each chunk has uploaded so far
   const bytesUploadedPerChunk = new Array(totalChunks).fill(0);
-  const chunkSizes = [];
-  for (let i = 0; i < totalChunks; i++) {
-    const start = i * CHUNK_SIZE;
-    const end = Math.min(start + CHUNK_SIZE, file.size);
-    chunkSizes.push(end - start);
-  }
 
   function onChunkProgress(chunkIndex, bytesLoaded) {
     bytesUploadedPerChunk[chunkIndex] = bytesLoaded;
     const totalUploaded = bytesUploadedPerChunk.reduce((a, b) => a + b, 0);
-    // Cap at 99% until the commit step succeeds
     const percent = Math.min(99, Math.round((totalUploaded / file.size) * 100));
     progressEl.style.width = percent + "%";
     statusText.innerText = `Uploading… ${percent}%`;
@@ -385,14 +380,13 @@ async function multipartForCloud(file, cloud) {
 
   const parts = [];
 
-  // UPLOAD CHUNKS in batches of MAX_PARALLEL_UPLOADS
   for (let i = 0; i < totalChunks; i += MAX_PARALLEL_UPLOADS) {
 
     const batch = [];
 
     for (let j = i; j < i + MAX_PARALLEL_UPLOADS && j < totalChunks; j++) {
 
-      batch.push(uploadChunk(file, cloud, startData, j, onChunkProgress));
+      batch.push(uploadChunkWithRetry(file, cloud, startData, j, onChunkProgress));
 
     }
 
@@ -403,8 +397,6 @@ async function multipartForCloud(file, cloud) {
     await sleep(BREATHING_DELAY);
 
   }
-
-  // COMPLETE MULTIPART
 
   if (cloud === "AWS") {
 
@@ -449,13 +441,64 @@ async function multipartForCloud(file, cloud) {
 
   if (cloud === "GCP") {
 
-    // GCP resumable uploads complete automatically
     lastUploadMeta.gcp_path = startData.blob;
 
   }
 
   progressEl.style.width = "100%";
   statusText.innerText = "Uploaded";
+
+}
+
+
+/* ===============================
+   UPLOAD CHUNK WITH RETRY
+================================ */
+// Wraps uploadChunk with exponential backoff retry.
+// ERR_CONNECTION_RESET is transient — a fresh presigned URL + retry fixes it.
+// uploadChunk already fetches a fresh presigned URL on every call, so retrying
+// it directly is safe: each attempt gets its own new signed URL.
+//
+// Attempt 1 fails → reset chunk progress → wait 2s → attempt 2
+// Attempt 2 fails → reset chunk progress → wait 4s → attempt 3
+// Attempt 3 fails → throw → Promise.all rejects → multipartForCloud fails
+async function uploadChunkWithRetry(file, cloud, startData, index, onProgress) {
+
+  let lastError;
+
+  for (let attempt = 1; attempt <= MAX_CHUNK_RETRIES; attempt++) {
+
+    try {
+
+      const result = await uploadChunk(file, cloud, startData, index, onProgress);
+      return result;
+
+    } catch (err) {
+
+      lastError = err;
+
+      if (attempt < MAX_CHUNK_RETRIES) {
+
+        const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+
+        console.warn(
+          `Chunk ${index + 1} failed (attempt ${attempt}/${MAX_CHUNK_RETRIES}): ${err}. ` +
+          `Retrying in ${delay / 1000}s…`
+        );
+
+        // Reset this chunk's byte count so progress bar doesn't show phantom bytes
+        if (onProgress) onProgress(index, 0);
+
+        await sleep(delay);
+
+      }
+
+    }
+
+  }
+
+  console.error(`Chunk ${index + 1} permanently failed after ${MAX_CHUNK_RETRIES} attempts: ${lastError}`);
+  throw new Error(`Chunk ${index + 1} failed after ${MAX_CHUNK_RETRIES} attempts`);
 
 }
 
@@ -476,9 +519,6 @@ function uploadChunk(file, cloud, startData, index, onProgress) {
       let payload;
       let blockId = null;
 
-      // ===============================
-      // AWS Multipart Upload
-      // ===============================
       if (cloud === "AWS") {
 
         payload = {
@@ -490,9 +530,6 @@ function uploadChunk(file, cloud, startData, index, onProgress) {
 
       }
 
-      // ===============================
-      // Azure Block Upload
-      // ===============================
       if (cloud === "AZURE") {
 
         blockId = btoa(String(index + 1).padStart(6, "0"));
@@ -505,9 +542,8 @@ function uploadChunk(file, cloud, startData, index, onProgress) {
 
       }
 
-      // ===============================
-      // Request presigned upload URL
-      // ===============================
+      // Fresh presigned URL on every call — safe to retry because each attempt
+      // gets a new URL unrelated to any previous dropped connection
       const presign = await fetch(`${API_BASE_URL}/files/multipart/presign-part/`, {
         method: "POST",
         headers: authHeaders(),
@@ -525,11 +561,6 @@ function uploadChunk(file, cloud, startData, index, onProgress) {
 
       xhr.open("PUT", presignData.url, true);
 
-      // NOTE: Do NOT set x-ms-blob-type on block part uploads (?comp=block).
-      // That header is only valid for single-blob PUTs. Setting it on block
-      // part requests causes Azure to reject the upload.
-
-      // Wire up per-chunk progress for byte-accurate overall progress tracking
       xhr.upload.onprogress = e => {
         if (e.lengthComputable && onProgress) {
           onProgress(index, e.loaded);
@@ -540,36 +571,27 @@ function uploadChunk(file, cloud, startData, index, onProgress) {
 
         if (xhr.status === 200 || xhr.status === 201) {
 
-          // Mark this chunk as fully uploaded
           if (onProgress) {
-            const chunkSize = end - start;
-            onProgress(index, chunkSize);
+            onProgress(index, end - start);
           }
 
           const etag = xhr.getResponseHeader("ETag");
 
-          // AWS result
           if (cloud === "AWS") {
-            resolve({
-              ETag: etag,
-              PartNumber: index + 1
-            });
+            resolve({ ETag: etag, PartNumber: index + 1 });
           }
 
-          // Azure result
           if (cloud === "AZURE") {
-            resolve({
-              block_id: blockId
-            });
+            resolve({ block_id: blockId });
           }
 
         } else {
-          reject(`Upload failed with status ${xhr.status}`);
+          reject(`HTTP ${xhr.status} on chunk ${index + 1}`);
         }
 
       };
 
-      xhr.onerror = () => reject("Upload failed");
+      xhr.onerror = () => reject(`Connection reset on chunk ${index + 1}`);
 
       xhr.send(chunk);
 
@@ -582,6 +604,7 @@ function uploadChunk(file, cloud, startData, index, onProgress) {
   });
 
 }
+
 
 /* ===============================
    CONFIRM UPLOAD

@@ -37,6 +37,12 @@ ALLOWED_HOSTS = [
     ".elb.amazonaws.com"
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://charansai.me",
+    "https://tricloudvault.charansai.me",
+    "https://www.charansai.me",
+]
+
 # --------------------------------------------------
 # APPLICATIONS
 # --------------------------------------------------
@@ -104,8 +110,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # UserEmailHeaderMiddleware removed — it leaked user PII (email address) in
-    # every API response header with no legitimate purpose
 ]
 
 # --------------------------------------------------

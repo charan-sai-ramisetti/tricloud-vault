@@ -1,0 +1,8 @@
+- hosts: tricloud
+  become: yes
+  gather_facts: no
+
+  roles:
+    - common
+    - backend
+    - caddy
