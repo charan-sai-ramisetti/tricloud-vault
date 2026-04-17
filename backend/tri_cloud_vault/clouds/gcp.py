@@ -18,7 +18,12 @@ bucket = client.bucket(os.getenv("GCP_BUCKET_NAME"))
 
 
 # Generate upload signed URL
-def generate_gcp_upload_url(user_id, file_name):
+def generate_gcp_upload_url(user_id, file_name, file_type=None):
+    # GCS signs content-type into the URL. We always sign as
+    # "application/octet-stream" regardless of the actual file type so the
+    # frontend can send a fixed Content-Type header that always matches.
+    # The frontend wraps the File in Blob({type:"application/octet-stream"})
+    # to prevent the browser from overriding the header with the real MIME type.
     try:
         blob_name = f"users/{user_id}/{uuid.uuid4()}_{file_name}"
         blob = bucket.blob(blob_name)
@@ -65,20 +70,14 @@ def delete_file_from_gcp(blob_name):
 
 
 # Start resumable upload session
-def start_resumable_upload(user_id, file_name, file_type, file_size=None):
+def start_resumable_upload(user_id, file_name, file_type):
     try:
         blob_name = f"users/{user_id}/{uuid.uuid4()}_{file_name}"
         blob = bucket.blob(blob_name)
 
-        # Pass size when known so GCS locks the Content-Length into the session.
-        # Without size=, GCS issues an open-ended session whose signed headers
-        # do NOT include content-type, causing a MalformedSecurityHeader 403
-        # when the client sends Content-Type on the resumable PUT chunks.
-        kwargs = {"content_type": file_type}
-        if file_size is not None:
-            kwargs["size"] = int(file_size)
-
-        session = blob.create_resumable_upload_session(**kwargs)
+        session = blob.create_resumable_upload_session(
+            content_type=file_type
+        )
 
         return blob_name, session
 
