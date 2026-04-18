@@ -230,7 +230,7 @@ class MultipartStartView(APIView):
 
             if cloud == "GCP":
                 blob, session = start_resumable_upload(request.user.id, file_name, file_type, file_size)
-                return Response({"blob": blob, "upload_url": session})
+                return Response({"blob_name": blob, "upload_url": session})
 
             if cloud == "AZURE":
                 blob_name = f"users/{request.user.id}/{uuid.uuid4()}_{file_name}"
