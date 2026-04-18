@@ -1,4 +1,18 @@
 :8080 {
+
+    trusted_proxies private_ranges
+
+    # Allow health check endpoint
+    @health path /health
+    respond @health 200
+
+    # Allow only EC2 IP for everything else
+    @denied not client_ip 13.232.240.86
+    respond @denied 403 {
+        body "Access restricted to benchmark client only."
+        close
+    }
+
     encode gzip
 
     handle /api/* {
@@ -13,27 +27,6 @@
 
     handle /admin/* {
         reverse_proxy 127.0.0.1:8000
-    }
-
-    handle /static/* {
-        root * {{ backend_dir }}/tri_cloud_vault/staticfiles
-        uri strip_prefix /static
-        file_server
-    }
-
-    handle /js/* {
-        root * {{ app_dir }}/frontend
-        file_server
-    }
-
-    handle /css/* {
-        root * {{ app_dir }}/frontend
-        file_server
-    }
-
-    handle /assets/* {
-        root * {{ app_dir }}/frontend
-        file_server
     }
 
     handle {

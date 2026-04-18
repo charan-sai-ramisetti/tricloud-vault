@@ -44,6 +44,11 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # --------------------------------------------------
+# FILE UPLOAD LIMITS
+# --------------------------------------------------
+FILE_UPLOAD_MAX_MEMORY_SIZE = 0 
+DATA_UPLOAD_MAX_MEMORY_SIZE = None
+# --------------------------------------------------
 # APPLICATIONS
 # --------------------------------------------------
 
@@ -227,7 +232,7 @@ REST_FRAMEWORK = {
 # --------------------------------------------------
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=120),
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=72),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
@@ -245,6 +250,85 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 DEFAULT_FROM_EMAIL = "TriCloud Vault <charansairamisetti@gmail.com>"
+
+# --------------------------------------------------
+# LOGGING
+# --------------------------------------------------
+
+LOGS_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOGS_DIR, exist_ok=True)
+ 
+LOGGING = {
+    "version":                  1,
+    "disable_existing_loggers": False,
+ 
+    "formatters": {
+        "benchmark": {
+            # Pipe-delimited so the log is directly parseable by pandas
+            # after the experiment: pd.read_csv("django.log", sep="|")
+            "format":  "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+            "datefmt": "%Y-%m-%dT%H:%M:%S",
+        },
+    },
+ 
+    "handlers": {
+        "console": {
+            "class":     "logging.StreamHandler",
+            "formatter": "benchmark",
+        },
+        "file": {
+            # Rotating handler prevents the log from growing unbounded
+            # across a 2-3 day benchmark run
+            "class":       "logging.handlers.RotatingFileHandler",
+            "filename":    os.path.join(LOGS_DIR, "django.log"),
+            "maxBytes":    50 * 1024 * 1024,   # 50 MB per file
+            "backupCount": 5,                   # keep last 5 rotated files
+            "formatter":   "benchmark",
+        },
+    },
+ 
+    "loggers": {
+        # Django request logger — one line per HTTP request with status code
+        "django.request": {
+            "handlers":  ["file", "console"],
+            "level":     "INFO",
+            "propagate": False,
+        },
+        # Application benchmark logger — upload timings from views.py
+        "benchmark": {
+            "handlers":  ["file", "console"],
+            "level":     "DEBUG",
+            "propagate": False,
+        },
+        # Suppress per-query DB logs — too noisy during bulk benchmark runs
+        "django.db.backends": {
+            "handlers":  ["file"],
+            "level":     "WARNING",
+            "propagate": False,
+        },
+        # Suppress per-chunk SDK debug output from cloud provider libraries
+        "botocore": {
+            "handlers":  ["file"],
+            "level":     "WARNING",
+            "propagate": False,
+        },
+        "azure": {
+            "handlers":  ["file"],
+            "level":     "WARNING",
+            "propagate": False,
+        },
+        "google": {
+            "handlers":  ["file"],
+            "level":     "WARNING",
+            "propagate": False,
+        },
+    },
+ 
+    "root": {
+        "handlers": ["file", "console"],
+        "level":    "INFO",
+    },
+}
 
 # --------------------------------------------------
 # SECURITY HEADERS
