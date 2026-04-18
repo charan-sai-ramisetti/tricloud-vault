@@ -242,7 +242,7 @@ async function multipartForCloud(file, cloud) {
   const start = await fetch(`${API_BASE_URL}/files/multipart/start/`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ file_name: file.name, file_type: file.type, cloud: cloud })
+    body: JSON.stringify({ file_name: file.name, file_type: file.type, file_size: file.size, cloud: cloud })
   });
   const startData = await start.json();
 
@@ -348,6 +348,39 @@ function uploadChunk(file, cloud, startData, index, onProgress) {
         // Block ID must be base64-encoded and consistent between presign and commit
         blockId = btoa(String(index + 1).padStart(6, "0"));
         payload = { cloud, blob_name: startData.blob_name, block_id: blockId };
+      }
+
+      // GCP resumable uploads stream directly to the session URI —
+      // they do NOT use the presign-part endpoint.
+      // Each chunk requires Content-Type and Content-Range headers.
+      // GCS returns 308 Resume Incomplete while more chunks are expected,
+      // and 200/201 only on the final chunk.
+      if (cloud === "GCP") {
+        const sessionUri = startData.upload_url;
+        const fileSize   = file.size;
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", sessionUri, true);
+        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+        xhr.setRequestHeader("Content-Range", `bytes ${start}-${end - 1}/${fileSize}`);
+
+        xhr.upload.onprogress = e => {
+          if (e.lengthComputable && onProgress) onProgress(index, e.loaded);
+        };
+
+        xhr.onload = () => {
+          // 308 = chunk accepted, more expected; 200/201 = final chunk done
+          if (xhr.status === 200 || xhr.status === 201 || xhr.status === 308) {
+            if (onProgress) onProgress(index, end - start);
+            resolve({ part_number: index + 1 });
+          } else {
+            reject(`GCP HTTP ${xhr.status} on chunk ${index + 1}`);
+          }
+        };
+
+        xhr.onerror = () => reject(`GCP connection reset on chunk ${index + 1}`);
+        xhr.send(chunk);
+        return; // skip the presign-part path below
       }
 
       // Fresh URL on every call — if this is a retry, the previous URL may be

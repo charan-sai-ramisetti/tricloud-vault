@@ -70,14 +70,21 @@ def delete_file_from_gcp(blob_name):
 
 
 # Start resumable upload session
-def start_resumable_upload(user_id, file_name, file_type):
+def start_resumable_upload(user_id, file_name, file_type, file_size=None):
+    # Always use application/octet-stream so it matches what the frontend
+    # sends in Content-Type on every resumable chunk PUT request.
+    # Pass size= when known so GCS locks Content-Length into the session —
+    # without it GCS creates an open-ended session whose signed headers
+    # behave differently and can cause 403 MalformedSecurityHeader errors.
     try:
         blob_name = f"users/{user_id}/{uuid.uuid4()}_{file_name}"
         blob = bucket.blob(blob_name)
 
-        session = blob.create_resumable_upload_session(
-            content_type=file_type
-        )
+        kwargs = {"content_type": "application/octet-stream"}
+        if file_size is not None:
+            kwargs["size"] = int(file_size)
+
+        session = blob.create_resumable_upload_session(**kwargs)
 
         return blob_name, session
 
