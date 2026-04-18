@@ -242,9 +242,26 @@ async function multipartForCloud(file, cloud) {
   const start = await fetch(`${API_BASE_URL}/files/multipart/start/`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ file_name: file.name, file_type: file.type, file_size: file.size, cloud: cloud })
+    body: JSON.stringify({ file_name: file.name, file_type: file.type, cloud: cloud })
   });
   const startData = await start.json();
+
+  // GCP: POST to the signed RESUMABLE URL to initiate the session.
+  // GCS responds with the session URI in the Location header.
+  // All subsequent chunk PUTs go to that session URI.
+  if (cloud === "GCP") {
+    const initRes = await fetch(startData.upload_url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "X-Goog-Resumable": "start",
+        "Content-Length": "0",
+      },
+    });
+    if (!initRes.ok) throw new Error(`GCP session init failed: ${initRes.status}`);
+    startData.upload_url = initRes.headers.get("Location");
+    if (!startData.upload_url) throw new Error("GCP session init returned no Location header");
+  }
 
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
   const bytesUploadedPerChunk = new Array(totalChunks).fill(0);
@@ -261,9 +278,13 @@ async function multipartForCloud(file, cloud) {
 
   const parts = [];
 
-  for (let i = 0; i < totalChunks; i += MAX_PARALLEL_UPLOADS) {
+  // GCS resumable uploads are strictly sequential — parallel chunks cause
+  // "upload offset exceeds already uploaded size". AWS/Azure support parallel.
+  const concurrency = (cloud === "GCP") ? 1 : MAX_PARALLEL_UPLOADS;
+
+  for (let i = 0; i < totalChunks; i += concurrency) {
     const batch = [];
-    for (let j = i; j < i + MAX_PARALLEL_UPLOADS && j < totalChunks; j++) {
+    for (let j = i; j < i + concurrency && j < totalChunks; j++) {
       batch.push(uploadChunkWithRetry(file, cloud, startData, j, onChunkProgress));
     }
     const results = await Promise.all(batch);
@@ -292,7 +313,7 @@ async function multipartForCloud(file, cloud) {
   }
 
   if (cloud === "GCP") {
-    lastUploadMeta.gcp_path = startData.blob;
+    lastUploadMeta.gcp_path = startData.blob_name;
   }
 
   progressEl.style.width = "100%";
@@ -350,26 +371,20 @@ function uploadChunk(file, cloud, startData, index, onProgress) {
         payload = { cloud, blob_name: startData.blob_name, block_id: blockId };
       }
 
-      // GCP resumable uploads stream directly to the session URI —
-      // they do NOT use the presign-part endpoint.
-      // Each chunk requires Content-Type and Content-Range headers.
-      // GCS returns 308 Resume Incomplete while more chunks are expected,
-      // and 200/201 only on the final chunk.
+      // GCP: stream chunk directly to the session URI using the resumable
+      // upload protocol. Does NOT use the presign-part endpoint.
+      // GCS returns 308 Resume Incomplete until the final chunk (200/201).
       if (cloud === "GCP") {
         const sessionUri = startData.upload_url;
         const fileSize   = file.size;
-
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", sessionUri, true);
         xhr.setRequestHeader("Content-Type", "application/octet-stream");
         xhr.setRequestHeader("Content-Range", `bytes ${start}-${end - 1}/${fileSize}`);
-
         xhr.upload.onprogress = e => {
           if (e.lengthComputable && onProgress) onProgress(index, e.loaded);
         };
-
         xhr.onload = () => {
-          // 308 = chunk accepted, more expected; 200/201 = final chunk done
           if (xhr.status === 200 || xhr.status === 201 || xhr.status === 308) {
             if (onProgress) onProgress(index, end - start);
             resolve({ part_number: index + 1 });
@@ -377,10 +392,9 @@ function uploadChunk(file, cloud, startData, index, onProgress) {
             reject(`GCP HTTP ${xhr.status} on chunk ${index + 1}`);
           }
         };
-
         xhr.onerror = () => reject(`GCP connection reset on chunk ${index + 1}`);
         xhr.send(chunk);
-        return; // skip the presign-part path below
+        return;
       }
 
       // Fresh URL on every call — if this is a retry, the previous URL may be

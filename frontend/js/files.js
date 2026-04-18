@@ -8,7 +8,9 @@ let deleteTarget = {
 document.addEventListener("DOMContentLoaded", loadFiles);
 
 function loadFiles() {
-  fetch(`${API_BASE_URL}/files/`, {
+  // authFetch automatically refreshes an expired token before this request
+  // so a user who has been on the page for 2+ hours still sees their files
+  authFetch(`${API_BASE_URL}/files/`, {
     method: "GET",
     headers: authHeaders()
   })
@@ -58,15 +60,28 @@ function loadFiles() {
    DOWNLOAD FILE
    =============================== */
 function downloadFile(fileId) {
-  fetch(`${API_BASE_URL}/files/${fileId}/presign/download/`, {
+  // authFetch handles token refresh automatically — this was returning 400
+  // "Authentication credentials were not provided" because the access token
+  // had expired (120 min lifetime) and authHeaders() was sending
+  // "Authorization: Bearer null" or an expired token. authFetch silently
+  // refreshes the token and retries so the download works without reloading.
+  authFetch(`${API_BASE_URL}/files/${fileId}/presign/download/`, {
     method: "GET",
     headers: authHeaders()
   })
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) {
+        // Surface the actual error rather than silently failing
+        return res.json().then(err => {
+          throw new Error(err.error || err.detail || `HTTP ${res.status}`);
+        });
+      }
+      return res.json();
+    })
     .then(data => {
       window.open(data.download_url, "_blank");
     })
-    .catch(() => alert("Download failed"));
+    .catch(err => alert(`Download failed: ${err.message}`));
 }
 
 document.getElementById("confirmDeleteBtn").onclick = function () {
@@ -79,7 +94,7 @@ document.getElementById("confirmDeleteBtn").onclick = function () {
     return;
   }
 
-  fetch(`${API_BASE_URL}/files/${deleteTarget.fileId}/`, {
+  authFetch(`${API_BASE_URL}/files/${deleteTarget.fileId}/`, {
     method: "DELETE",
     headers: {
       ...authHeaders(),
