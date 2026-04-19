@@ -15,6 +15,7 @@ from .views import (
     ServerUploadAWSView,
     ServerUploadAzureView,
     ServerUploadGCPView,
+    BenchmarkCompleteView,
 )
 
 urlpatterns = [
@@ -52,4 +53,7 @@ urlpatterns = [
     path("upload/server/aws/", ServerUploadAWSView.as_view()),
     path("upload/server/azure/", ServerUploadAzureView.as_view()),
     path("upload/server/gcp/", ServerUploadGCPView.as_view()),
+
+    # Benchmark multipart complete (no auth — for benchmark script)
+    path("benchmark/complete/", BenchmarkCompleteView.as_view()),
 ]

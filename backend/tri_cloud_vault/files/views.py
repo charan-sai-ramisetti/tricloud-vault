@@ -230,7 +230,7 @@ class MultipartStartView(APIView):
 
             if cloud == "GCP":
                 blob, session = start_resumable_upload(request.user.id, file_name, file_type, file_size)
-                return Response({"blob_name": blob, "upload_url": session})
+                return Response({"blob": blob, "upload_url": session})
 
             if cloud == "AZURE":
                 blob_name = f"users/{request.user.id}/{uuid.uuid4()}_{file_name}"
@@ -697,3 +697,45 @@ class ServerUploadGCPView(APIView):
         except RuntimeError as e:
             logger.error(f"ServerUploadGCPView error: {str(e)}")
             return Response({"error": str(e)}, status=500)
+
+# ==========================================
+# BENCHMARK — COMPLETE MULTIPART (no auth)
+# POST /api/files/benchmark/complete/
+#
+# Same logic as MultipartCompleteView but AllowAny so the benchmark
+# script can call it without a JWT. The app's MultipartCompleteView
+# stays IsAuthenticated for normal user uploads.
+# ==========================================
+class BenchmarkCompleteView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        cloud = request.data.get("cloud")
+        if not cloud:
+            return Response({"error": "cloud required"}, status=400)
+
+        cloud = cloud.upper()
+
+        try:
+            if cloud == "AWS":
+                key       = request.data.get("key")
+                upload_id = request.data.get("upload_id")
+                parts     = request.data.get("parts")
+                parts     = sorted(parts, key=lambda p: p["PartNumber"])
+                complete_multipart_upload(key, upload_id, parts)
+                return Response({"message": "AWS multipart complete"})
+
+            if cloud == "AZURE":
+                blob_name = request.data.get("blob_name")
+                blocks    = request.data.get("blocks")
+                commit_block_list(blob_name, blocks)
+                return Response({"message": "Azure upload complete"})
+
+            if cloud == "GCP":
+                return Response({"message": "GCP upload complete"})
+
+            return Response({"error": f"Unknown cloud: {cloud}"}, status=400)
+
+        except Exception as e:
+            logger.error(f"BenchmarkCompleteView error: {str(e)}")
+            return Response({"error": "Multipart completion failed"}, status=500)
