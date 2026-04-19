@@ -1,32 +1,63 @@
+{
+    servers {
+        trusted_proxies static 10.0.0.0/16
+    }
+}
+
 :8080 {
-
-    trusted_proxies private_ranges
-
-    # Allow health check endpoint
-    @health path /health
-    respond @health 200
-
-    # Allow only EC2 IP for everything else
-    @denied not client_ip 13.232.240.86
-    respond @denied 403 {
-        body "Access restricted to benchmark client only."
-        close
+    encode gzip
+    log {
+        output stdout
+        format console
     }
 
-    encode gzip
+    handle /health {
+        respond "OK" 200
+    }
+
+    @blocked {
+        not header X-Forwarded-For *{{ benchmark_client_ip }}*
+    }
+    handle @blocked {
+        respond "Access denied." 403 {
+            close
+        }
+    }
 
     handle /api/* {
         reverse_proxy 127.0.0.1:8000 {
             transport http {
-                response_header_timeout 60s
-                read_timeout 120s
-                write_timeout 120s
+                response_header_timeout 30s
+                read_timeout            1800s
+                write_timeout           1800s
+                dial_timeout            10s
             }
         }
     }
 
     handle /admin/* {
         reverse_proxy 127.0.0.1:8000
+    }
+
+    handle /static/* {
+        root * {{ backend_dir }}/tri_cloud_vault/staticfiles
+        uri strip_prefix /static
+        file_server
+    }
+
+    handle /js/* {
+        root * {{ app_dir }}/frontend
+        file_server
+    }
+
+    handle /css/* {
+        root * {{ app_dir }}/frontend
+        file_server
+    }
+
+    handle /assets/* {
+        root * {{ app_dir }}/frontend
+        file_server
     }
 
     handle {
