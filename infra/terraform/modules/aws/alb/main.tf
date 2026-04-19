@@ -4,6 +4,11 @@ resource "aws_lb" "this" {
   subnets            = var.subnet_ids
   security_groups    = [var.security_group_id]
 
+  # Raised from the default 60s to handle large server-side uploads.
+  # A 5 GB file at 50 MB/s takes ~100s server→cloud; the client→server
+  # leg adds more. 4000s (ALB max) covers the largest benchmark file.
+  idle_timeout = 4000
+
   tags = {
     Project     = var.project_name
     Environment = var.environment

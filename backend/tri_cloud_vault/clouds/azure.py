@@ -181,7 +181,6 @@ def server_side_upload_azure(file_obj, file_name, chunk_size=DEFAULT_CHUNK_SIZE)
             file_obj,
             overwrite=True,
             max_concurrency=4,
-            max_single_put_size=chunk_size,
         )
 
         elapsed = time.perf_counter() - start
