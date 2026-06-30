@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "this" {
-  bucket = "${var.project_name}-${var.environment}-aws-2026211200"
+  bucket = "${var.project_name}-${var.environment}-aws-2026211205"
 }
 
 resource "aws_s3_bucket_cors_configuration" "tricloud_cors" {

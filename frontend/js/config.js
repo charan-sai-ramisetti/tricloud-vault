@@ -1,1 +1,1 @@
-const API_BASE_URL = "https://tricloudvault.charansai.me/api";
+const API_BASE_URL = "https://tricloudvault.charansai/api";

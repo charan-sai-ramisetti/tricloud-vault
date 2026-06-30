@@ -16,7 +16,10 @@ s3 = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-    region_name=os.getenv("AWS_REGION"),
+    region_name=os.getenv("AWS_REGION", "ap-south-1"),
+    config=boto3.session.Config(
+        signature_version="s3v4",
+        s3={"addressing_style": "virtual"}),
 )
 
 DEFAULT_CHUNK_SIZE = 10 * 1024 * 1024  # 10MB

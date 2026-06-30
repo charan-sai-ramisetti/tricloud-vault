@@ -1,3 +1,37 @@
+data "aws_caller_identity" "current" {}
+
+# ==========================================
+# S3 bucket for Ansible SSM connection plugin file transfer
+# ==========================================
+resource "aws_s3_bucket" "ansible_ssm" {
+  bucket = "tricloud-ansible-ssm-${data.aws_caller_identity.current.account_id}"
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "ansible_ssm_cleanup" {
+  bucket = aws_s3_bucket.ansible_ssm.id
+
+  rule {
+    id     = "expire-old-objects"
+    status = "Enabled"
+
+    expiration {
+      days = 1
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "ansible_ssm" {
+  bucket = aws_s3_bucket.ansible_ssm.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# ==========================================
+# IAM role for EC2 instance (SSM + S3 access for Ansible)
+# ==========================================
 resource "aws_iam_role" "ec2_ssm_role" {
   name = "tricloud-ec2-ssm-role"
 
@@ -33,8 +67,8 @@ resource "aws_iam_role_policy" "ansible_ssm_s3" {
         "s3:ListBucket"
       ]
       Resource = [
-        "arn:aws:s3:::tricloud-ansible-ssm",
-        "arn:aws:s3:::tricloud-ansible-ssm/*"
+        aws_s3_bucket.ansible_ssm.arn,
+        "${aws_s3_bucket.ansible_ssm.arn}/*"
       ]
     }]
   })

@@ -1,5 +1,5 @@
 resource "google_storage_bucket" "this" {
-  name     = "${var.project_name}-${var.environment}-gcp"
+  name     = "${var.project_name}-${var.environment}-gcp-211"
   location = "ASIA"
   cors {
     origin = [
