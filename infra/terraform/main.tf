@@ -65,7 +65,8 @@ module "azure_blob" {
 }
 
 module "gcp_bucket" {
-  source       = "./modules/gcp/storage-bucket"
-  project_name = var.project_name
-  environment  = var.environment
+  source         = "./modules/gcp/storage-bucket"
+  project_name   = var.project_name
+  environment    = var.environment
+  gcp_project_id = var.gcp_project_id
 }

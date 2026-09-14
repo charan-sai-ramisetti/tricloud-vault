@@ -1,5 +1,15 @@
 data "aws_caller_identity" "current" {}
 
+output "current_aws_account_id" {
+  value = data.aws_caller_identity.current.account_id
+  description = "The AWS Account ID that Terraform is using"
+}
+
+output "current_aws_user_arn" {
+  value = data.aws_caller_identity.current.arn
+  description = "The ARN of the AWS user/role that Terraform is using"
+}
+
 # ==========================================
 # S3 bucket for Ansible SSM connection plugin file transfer
 # ==========================================
@@ -70,6 +80,24 @@ resource "aws_iam_role_policy" "ansible_ssm_s3" {
         aws_s3_bucket.ansible_ssm.arn,
         "${aws_s3_bucket.ansible_ssm.arn}/*"
       ]
+    }]
+  })
+}
+
+# Secrets Manager access for application secrets
+resource "aws_iam_role_policy" "secrets_manager_access" {
+  name = "ansible-secretsmanager-access"
+  role = aws_iam_role.ec2_ssm_role.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+      ]
+      Resource = "arn:aws:secretsmanager:ap-south-1:*:secret:tricloud/production/*"
     }]
   })
 }

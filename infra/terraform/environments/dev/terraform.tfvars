@@ -26,7 +26,7 @@ db_password = "StrongPassword123!"
 
 azure_location  = "centralindia"
 
-gcp_project_id = "tricloud-vault-project"
+gcp_project_id = "striped-device-508614-f3"
 gcp_region     = "asia-south1"
 
 acm-arn="arn:aws:acm:ap-south-1:468490947328:certificate/946d8b6c-4762-4acd-8c39-a0b2eaa9fde5"

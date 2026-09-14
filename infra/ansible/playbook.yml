@@ -1,6 +1,6 @@
-- hosts: tricloud
+- hosts: env_dev
   become: yes
-  gather_facts: no
+  gather_facts: yes
 
   roles:
     - common

@@ -4,6 +4,7 @@
     | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   args:
     creates: /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  register: caddy_gpg_added
 
 - name: Add Caddy APT repository
   shell: |
@@ -11,11 +12,17 @@
     | tee /etc/apt/sources.list.d/caddy-stable.list
   args:
     creates: /etc/apt/sources.list.d/caddy-stable.list
+  register: caddy_repo_added
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+  when: caddy_repo_added.changed or caddy_gpg_added.changed
 
 - name: Install Caddy
-  shell: |
-    apt-get update -y
-    apt-get install -y caddy
+  apt:
+    name: caddy
+    state: present
 
 - name: Set directory permissions for Caddy access
   file:
@@ -56,9 +63,12 @@
   template:
     src: Caddyfile.j2
     dest: /etc/caddy/Caddyfile
+  notify:
+    - Reload systemd
+    - Restart Caddy
 
-- name: Restart Caddy
-  shell: |
-    systemctl daemon-reload
-    systemctl enable caddy
-    systemctl restart caddy
+- name: Enable Caddy service
+  systemd:
+    name: caddy
+    enabled: yes
+    state: started

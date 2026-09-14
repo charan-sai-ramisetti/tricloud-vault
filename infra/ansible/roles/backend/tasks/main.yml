@@ -1,6 +1,23 @@
+- name: Fetch secrets from AWS Secrets Manager
+  command: >
+    aws secretsmanager get-secret-value
+    --secret-id tricloud/production/secrets
+    --region ap-south-1
+    --query SecretString
+    --output text
+  register: secrets_json
+  no_log: true
+  changed_when: false
+
+- name: Parse secrets into Ansible facts
+  set_fact:
+    app_secrets: "{{ secrets_json.stdout | from_json }}"
+  no_log: true
+
 - name: Mark repo as safe for git
   command: git config --global --add safe.directory /home/ubuntu/tricloud-vault
- 
+  args:
+    creates: /home/ubuntu/.gitconfig
 
 - name: Clone repository
   git:
@@ -40,8 +57,8 @@
     mode: '0600'
 
 - name: Copy GCP credentials
-  copy:
-    src: "{{ playbook_dir }}/templates/gcp_credentials.j2"
+  template:
+    src: gcp_credentials.j2
     dest: /home/ubuntu/tricloud-vault/tri_cloud_vault_gcp.json
     owner: ubuntu
     group: ubuntu
@@ -63,9 +80,10 @@
   template:
     src: tricloud.service.j2
     dest: /etc/systemd/system/tricloud.service
+  notify: Restart tricloud service
 
 - name: Reload systemd
-  command: systemctl daemon-reexec
+  command: systemctl daemon-reload
 
 - name: Enable and start service
   systemd:
